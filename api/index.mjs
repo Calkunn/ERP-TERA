@@ -566,7 +566,7 @@ async function dashboard() {
     FROM inventory_balances ib
     JOIN variants v ON v.id = ib.variant_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
-    GROUP BY ip.id
+    GROUP BY ip.id, ip.name
   `).all();
   const stockByArticle = await db.prepare(`
     SELECT p.name, SUM(ib.qty) AS total_qty,
@@ -576,7 +576,7 @@ async function dashboard() {
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
-    GROUP BY p.id
+    GROUP BY p.id, p.name
     ORDER BY total_qty DESC
   `).all();
   const lowStock = await db.prepare(`
@@ -594,10 +594,10 @@ async function dashboard() {
     ORDER BY month ASC
   `).all();
   const monthlyStockMovement = await db.prepare(`
-    SELECT substr(created_at, 1, 7) AS month, ABS(SUM(CASE WHEN qty < 0 THEN qty ELSE 0 END)) AS sold_qty,
+    SELECT substr(CAST(created_at AS TEXT), 1, 7) AS month, ABS(SUM(CASE WHEN qty < 0 THEN qty ELSE 0 END)) AS sold_qty,
       SUM(CASE WHEN qty > 0 THEN qty ELSE 0 END) AS stock_in
     FROM stock_movements
-    GROUP BY substr(created_at, 1, 7)
+    GROUP BY substr(CAST(created_at AS TEXT), 1, 7)
     ORDER BY month ASC
   `).all();
   return { revenue, inventory, stockByArticle, lowStock, monthlyRevenue, monthlyStockMovement };
@@ -615,13 +615,13 @@ async function products() {
     LEFT JOIN inventory_balances ib ON ib.variant_id = v.id
     LEFT JOIN inventory_pools ip ON ip.id = ib.pool_id
     WHERE p.status != 'Archived'
-    GROUP BY v.id
+    GROUP BY v.id, p.id, p.name, p.category, p.status, v.sku, v.size, v.color, v.cost_price, v.sell_price, v.low_stock
     ORDER BY p.name, v.sku
   `).all();
 }
 
 async function movements(month = "") {
-  const monthFilter = month ? "WHERE substr(sm.created_at, 1, 7) = ?" : "";
+  const monthFilter = month ? "WHERE substr(CAST(sm.created_at AS TEXT), 1, 7) = ?" : "";
   const params = month ? [month] : [];
   return await db.prepare(`
     SELECT sm.id AS id, sm.created_at, sm.type, sm.qty, sm.note, ip.name AS pool, p.name, v.sku, v.size, v.color
@@ -755,7 +755,7 @@ async function reports() {
     FROM monthly_revenue_items mri
     JOIN variants v ON v.id = mri.variant_id
     JOIN products p ON p.id = v.product_id
-    GROUP BY v.id
+    GROUP BY v.id, p.name, v.sku
     ORDER BY margin DESC
   `).all();
   return { channel, sku };
