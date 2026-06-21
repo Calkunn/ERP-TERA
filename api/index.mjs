@@ -263,22 +263,25 @@ async function initDb() {
 }
 
 async function seedInventoryPools() {
-  const poolCount = await db.prepare("SELECT COUNT(*) AS total FROM inventory_pools").get().total;
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM inventory_pools").get();
+  const poolCount = Number(row ? row.total : 0);
   if (poolCount === 0) {
-    await db.prepare("INSERT INTO inventory_pools (name) VALUES (?), (?)").run("Online Inventory", "Offline Inventory");
+    await db.prepare("INSERT INTO inventory_pools (name) VALUES (?), (?) ON CONFLICT (name) DO NOTHING").run("Online Inventory", "Offline Inventory");
   }
 }
 
 async function seedUsers() {
-  const count = await db.prepare("SELECT COUNT(*) AS total FROM users").get().total;
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM users").get();
+  const count = Number(row ? row.total : 0);
   if (count > 0) return;
-  const stmt = await db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)");
+  const stmt = await db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?) ON CONFLICT (email) DO NOTHING");
   await stmt.run("Owner TERA", "owner@tera.local", hashPassword("teraowner"), "Owner");
   await stmt.run("Admin TERA", "admin@tera.local", hashPassword("teraadmin"), "Admin");
 }
 
 async function seedBaseData() {
-  const count = await db.prepare("SELECT COUNT(*) AS total FROM products").get().total;
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM products").get();
+  const count = Number(row ? row.total : 0);
   if (count > 0) return;
 
   await db.exec("BEGIN");
@@ -418,11 +421,12 @@ async function seedBaseData() {
 }
 
 async function seedMonthlyRevenue() {
-  const count = await db.prepare("SELECT COUNT(*) AS total FROM monthly_revenues").get().total;
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM monthly_revenues").get();
+  const count = Number(row ? row.total : 0);
   if (count > 0) return;
   const stmt = await db.prepare(`
     INSERT INTO monthly_revenues (month, online_revenue, offline_revenue, online_notes, offline_notes)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?) ON CONFLICT (month) DO NOTHING
   `);
   const revs = [
     ["2026-01", 17400000, 9200000, "Tokopedia kuat di hoodie", "Event awal tahun"],
@@ -438,7 +442,8 @@ async function seedMonthlyRevenue() {
 }
 
 async function seedMonthlyExpenses() {
-  const count = await db.prepare("SELECT COUNT(*) AS total FROM monthly_expenses").get().total;
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM monthly_expenses").get();
+  const count = Number(row ? row.total : 0);
   if (count > 0) return;
   const stmt = await db.prepare("INSERT INTO monthly_expenses (month, category, amount, note) VALUES (?, ?, ?, ?)");
   const exps = [
