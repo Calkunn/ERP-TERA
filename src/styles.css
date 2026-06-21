@@ -173,9 +173,19 @@ summary {
   color: #a9b8b1;
 }
 
-nav {
+.nav-group {
   display: grid;
   gap: 4px;
+  margin-bottom: 20px;
+}
+
+.nav-group-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-bottom: 6px;
+  padding-left: 12px;
+  letter-spacing: 0.8px;
 }
 
 .nav {
@@ -894,20 +904,7 @@ dialog[open]::backdrop {
 
 /* --- NEW COMPONENT STYLES --- */
 
-.nav-group {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 20px;
-}
 
-.nav-group-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--muted);
-  margin-bottom: 6px;
-  padding-left: 12px;
-  letter-spacing: 0.8px;
-}
 .topbar-left {
   display: flex;
   align-items: center;
