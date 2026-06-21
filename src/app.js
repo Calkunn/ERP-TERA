@@ -1014,19 +1014,19 @@ function addPoItemRow() {
   row.className = "item-row";
   
   row.innerHTML = `
-    <div style="flex-grow:2; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Bahan Baku / Aksesoris (BOM)</label>
       <input name="materialName" list="materialOptions" placeholder="Ketik nama bahan/aksesoris..." required autocomplete="off">
     </div>
-    <div style="width:80px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Qty</label>
       <input name="qty" type="number" min="1" value="1" placeholder="Qty" required>
     </div>
-    <div style="width:120px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Satuan (Rp)</label>
       <input name="costPrice" type="number" min="0" value="0" placeholder="Harga Satuan" required>
     </div>
-    <div style="width:140px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Total (Rp)</label>
       <input name="totalPrice" type="number" min="0" value="0" placeholder="Harga Total" required>
     </div>
@@ -1212,17 +1212,17 @@ function addBatchItemRow(products) {
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML = `
-    <div style="flex-grow:2; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Artikel Produk</label>
       <select name="productId" required>
         ${products.map((p) => `<option value="${p.product_id}">${p.name} (${p.category})</option>`).join("")}
       </select>
     </div>
-    <div style="width:80px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Qty</label>
       <input name="qty" type="number" min="1" value="1" placeholder="Qty" required>
     </div>
-    <div style="width:120px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Biaya Produksi (Satuan)</label>
       <input name="productionCost" type="number" min="0" value="0" placeholder="Biaya jahit/potong per pcs" required>
     </div>
