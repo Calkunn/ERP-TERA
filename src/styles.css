@@ -609,6 +609,8 @@ input, select, button {
 
 input[type="date"],
 input[type="month"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
   display: block;
   width: 100% !important;
   max-width: 100% !important;
