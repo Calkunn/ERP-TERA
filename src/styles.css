@@ -736,6 +736,10 @@ button.danger:hover, button.danger.soft:hover {
   gap: 8px;
 }
 
+.item-row > div {
+  width: auto !important;
+}
+
 .dialog-actions {
   display: grid;
   grid-template-columns: 1fr auto;
