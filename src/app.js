@@ -338,8 +338,8 @@ async function loadDashboard() {
   ]);
   const totalMonthlyRevenue = data.monthlyRevenue.at(-1)?.total || 0;
   const latestProfit = profits[0]?.profit || 0;
-  const stockQty = data.inventory.reduce((sum, row) => sum + (row.qty || 0), 0);
-  const stockValue = data.inventory.reduce((sum, row) => sum + (row.value || 0), 0);
+  const stockQty = data.inventory.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+  const stockValue = data.inventory.reduce((sum, row) => sum + Number(row.value || 0), 0);
 
   document.querySelector("#metrics").innerHTML = [
     ["Revenue Bulan Ini", rupiah.format(totalMonthlyRevenue)],
@@ -558,7 +558,7 @@ async function loadPembelian() {
   // Filter out completed and canceled POs (only show ongoing POs)
   const activePos = pos.filter(r => r.status !== 'Selesai' && r.status !== 'Dibatalkan');
   const shippedPos = activePos.filter(r => r.status === 'Dikirim');
-  const totalExpenses = activePos.reduce((sum, r) => sum + (r.total_amount || 0), 0);
+  const totalExpenses = activePos.reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
 
   document.querySelector("#totalActivePos").textContent = activePos.length;
   document.querySelector("#totalShippedPos").textContent = shippedPos.length;
@@ -637,8 +637,8 @@ async function loadKeuangan() {
     api("/api/monthly-expenses")
   ]);
 
-  const totalIncome = profits.reduce((sum, r) => sum + (r.revenue || 0), 0);
-  const totalExpense = profits.reduce((sum, r) => sum + (r.expense || 0), 0);
+  const totalIncome = profits.reduce((sum, r) => sum + Number(r.revenue || 0), 0);
+  const totalExpense = profits.reduce((sum, r) => sum + Number(r.expense || 0), 0);
   const netProfit = totalIncome - totalExpense;
 
   document.querySelector("#financeTotalIncome").textContent = rupiah.format(totalIncome);
