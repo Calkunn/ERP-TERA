@@ -950,15 +950,32 @@ dialog[open]::backdrop {
   }
 
   .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 99;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    margin-top: -22px;
+    padding: 16px 0 12px;
+    border-bottom: 1px solid var(--line);
+    width: 100%;
+    display: flex;
     align-items: center;
-    flex-direction: row;
-    margin-bottom: 16px;
     gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .topbar-left {
+    width: 100%;
+    display: flex;
+    align-items: center;
   }
 
   .search-bar {
+    flex-grow: 1;
     width: 100%;
-    max-width: 320px;
+    max-width: 400px;
   }
 
   .top-actions {
