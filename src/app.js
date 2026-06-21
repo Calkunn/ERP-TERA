@@ -760,6 +760,8 @@ document.querySelectorAll(".nav").forEach((button) => {
     // Hide mobile sidebar on navigation click
     document.querySelector(".sidebar")?.classList.remove("open");
     document.querySelector("#sidebarOverlay")?.classList.add("hidden");
+    const toggleBtn = document.querySelector("#menuToggleBtn");
+    if (toggleBtn) toggleBtn.textContent = "☰";
 
     document.querySelectorAll(".nav, .view").forEach((el) => el.classList.remove("active"));
     button.classList.add("active");
@@ -815,13 +817,27 @@ document.querySelector("#themeToggle").addEventListener("click", () => {
 
 // Mobile Sidebar Menu Toggle Handler
 document.querySelector("#menuToggleBtn")?.addEventListener("click", () => {
-  document.querySelector(".sidebar")?.classList.add("open");
-  document.querySelector("#sidebarOverlay")?.classList.remove("hidden");
+  const sidebar = document.querySelector(".sidebar");
+  const overlay = document.querySelector("#sidebarOverlay");
+  const toggleBtn = document.querySelector("#menuToggleBtn");
+  if (sidebar) {
+    if (sidebar.classList.contains("open")) {
+      sidebar.classList.remove("open");
+      overlay?.classList.add("hidden");
+      if (toggleBtn) toggleBtn.textContent = "☰";
+    } else {
+      sidebar.classList.add("open");
+      overlay?.classList.remove("hidden");
+      if (toggleBtn) toggleBtn.textContent = "✕";
+    }
+  }
 });
 
 document.querySelector("#sidebarOverlay")?.addEventListener("click", () => {
   document.querySelector(".sidebar")?.classList.remove("open");
   document.querySelector("#sidebarOverlay")?.classList.add("hidden");
+  const toggleBtn = document.querySelector("#menuToggleBtn");
+  if (toggleBtn) toggleBtn.textContent = "☰";
 });
 
 // Generic tab switching (within Pembelian, Produksi)
@@ -1465,6 +1481,34 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   await refreshAll();
 });
 
+function generateSku(name, category, size, color) {
+  if (!name) return "";
+  const namePart = name.trim().toUpperCase()
+    .replace(/[^A-Z0-9\s-]/g, "")
+    .replace(/\s+/g, "-");
+
+  const cat = (category || "").trim().toUpperCase();
+  let catPart = "";
+  if (cat.includes("T-SHIRT")) catPart = "TS";
+  else if (cat.includes("HOODIE")) catPart = "HD";
+  else if (cat.includes("SHIRT")) catPart = "SH";
+  else if (cat.includes("PANTS")) catPart = "PT";
+  else if (cat.includes("JACKET")) catPart = "JK";
+  else if (cat.includes("CAP")) catPart = "CP";
+  else if (cat.includes("TOTE BAG")) catPart = "TB";
+  else if (cat.includes("OUTERWEAR")) catPart = "OW";
+  else if (cat.includes("AKSESORIS")) catPart = "AKS";
+  else catPart = cat.slice(0, 3);
+
+  const colPart = color.trim().toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 3);
+
+  const szPart = size.trim().toUpperCase().replace(/\s+/g, "");
+
+  return ["TERA", namePart, catPart, colPart, szPart].filter(Boolean).join("-");
+}
+
 document.querySelector("#productForm").addEventListener("input", (event) => {
   const form = event.currentTarget;
   const online = Number(form.onlineQty.value || 0);
@@ -1476,6 +1520,15 @@ document.querySelector("#productForm").addEventListener("input", (event) => {
     } else {
       totalInput.value = "";
     }
+  }
+
+  // Auto-generate SKU
+  const name = form.name.value;
+  const category = form.category.value;
+  const size = form.size.value;
+  const color = form.color.value;
+  if (form.sku && ["name", "category", "size", "color"].includes(event.target.name)) {
+    form.sku.value = generateSku(name, category, size, color);
   }
 });
 

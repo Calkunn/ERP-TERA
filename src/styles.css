@@ -128,8 +128,10 @@ summary {
 }
 
 .sidebar {
-  position: sticky;
+  position: fixed;
+  left: 0;
   top: 0;
+  width: 248px;
   height: 100vh;
   padding: 24px 16px;
   background: var(--sidebar);
@@ -137,6 +139,7 @@ summary {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  z-index: 99;
 }
 
 .sidebar-nav {
@@ -361,6 +364,7 @@ summary {
 }
 
 main {
+  grid-column: 2;
   min-width: 0;
   padding: 22px;
 }
@@ -861,7 +865,7 @@ dialog[open]::backdrop {
 }
 
 @media (max-width: 1120px) {
-  .metrics, .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid, .item-row {
+  .metrics, .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -873,18 +877,20 @@ dialog[open]::backdrop {
 
   .sidebar {
     position: fixed;
-    left: 0;
+    right: 0;
+    left: auto;
     top: 0;
     width: 280px;
     height: 100vh;
     z-index: 1000;
-    transform: translateX(-100%);
+    transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.45);
+    box-shadow: none;
   }
 
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.45);
   }
 
   .sidebar-nav {
@@ -948,10 +954,61 @@ dialog[open]::backdrop {
 
   .menu-toggle-btn {
     display: flex;
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #ffffff;
+    z-index: 1001;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+    border: none;
+    font-size: 24px;
+    margin-right: 0;
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .metrics, .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid, .item-row, .split {
+  .menu-toggle-btn:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+    transform: scale(1.05);
+  }
+
+  .menu-toggle-btn:active {
+    transform: scale(0.95);
+  }
+
+  .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid, .split {
     grid-template-columns: 1fr;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .item-row {
+    grid-template-columns: 1.8fr 1fr 1fr 36px !important;
+    gap: 4px !important;
+  }
+
+  .panel, .view, .grid {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  main {
+    padding: 12px;
+    padding-bottom: 80px;
   }
 
   .topbar {
