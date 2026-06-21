@@ -20,24 +20,10 @@
           </div>
         </div>
         <form id="loginForm" class="stack">
-          <input name="email" type="email" placeholder="Email" value="owner@tera.local" required>
-          <input name="password" type="password" placeholder="Password" value="teraowner" required>
+          <input name="email" type="email" placeholder="Email" required>
+          <input name="password" type="password" placeholder="Password" required>
           <button type="submit">↳ Masuk</button>
-          <small>Contoh awal: owner@tera.local / teraowner atau admin@tera.local / teraadmin</small>
         </form>
-        <details>
-          <summary>Buat akun Owner/Admin sendiri</summary>
-          <form id="registerForm" class="stack compact">
-            <input name="name" placeholder="Nama" required>
-            <input name="email" type="email" placeholder="Email baru" required>
-            <input name="password" type="password" minlength="6" placeholder="Password minimal 6 karakter" required>
-            <select name="role">
-              <option>Owner</option>
-              <option>Admin</option>
-            </select>
-            <button type="submit">＋ Buat Akun</button>
-          </form>
-        </details>
       </div>
     </section>
 
@@ -59,7 +45,6 @@
             <button class="nav" data-view="inventori">⛃ Inventori</button>
             <button class="nav" data-view="pembelian">🛒 Pembelian</button>
             <button class="nav" data-view="produksi">🏭 Produksi</button>
-            <button class="nav" data-view="bom">📜 Bill of Materials</button>
           </div>
 
           <div class="nav-group">
@@ -391,24 +376,7 @@
           </div>
         </section>
 
-        <!-- BILL OF MATERIALS VIEW -->
-        <section id="bom" class="view">
-          <div class="tab-header">
-            <button class="tab-btn active" data-tab="bomTab">Bill of Materials</button>
-            <button id="newBomBtn" class="action-btn-right">＋ BOM Baru</button>
-          </div>
 
-          <div id="bomTab" class="tab-content active">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Daftar Bill of Materials (BOM)</h2>
-              </div>
-              <div class="table-wrap">
-                <table id="bomTable"></table>
-              </div>
-            </section>
-          </div>
-        </section>
 
         <!-- PENJUALAN (REVENUE) VIEW -->
         <section id="penjualan" class="view">
@@ -749,38 +717,7 @@
       </form>
     </dialog>
 
-    <!-- ADD BOM DIALOG -->
-    <dialog id="bomDialog">
-      <form id="newBomForm" class="dialog-card">
-        <div class="panel-head">
-          <h2>Tambah Bill of Materials (BOM) Baru</h2>
-          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#bomDialog').close()">×</button>
-        </div>
-        <div class="stack">
-          <div>
-            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Pilih Artikel Produk</label>
-            <select name="productId" id="bomFormProduct" required></select>
-          </div>
-          <div>
-            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Bahan Baku</label>
-            <input name="materialName" placeholder="Nama Bahan Baku (e.g. Cotton Combed 30s, Kancing, dll.)" required>
-          </div>
-          <div class="split">
-            <div>
-              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kebutuhan per Pcs</label>
-              <input name="requiredQty" type="number" step="any" min="0.0001" placeholder="Kebutuhan (e.g. 0.35, 1)" required>
-            </div>
-            <div>
-              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Satuan</label>
-              <input name="unit" placeholder="Satuan (e.g. kg, meter, pcs)" required>
-            </div>
-          </div>
-          <div class="dialog-actions" style="margin-top: 15px;">
-            <button type="submit">✓ Simpan BOM</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
+
 
     <!-- DYNAMIC PRODUCT SLIDING DRAWER -->
     <div id="drawerOverlay" class="drawer-overlay hidden"></div>

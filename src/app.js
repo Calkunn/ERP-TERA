@@ -7,7 +7,6 @@ const titles = {
   inventori: ["Inventori", "Kelola transfer stock dan lihat riwayat pergerakan inventory."],
   pembelian: ["Pembelian & PO", "Kelola purchase order dan database supplier."],
   produksi: ["Produksi", "Kelola batch produksi (cutting, sewing, finishing)."],
-  bom: ["Bill of Materials (BOM)", "Kelola spesifikasi kebutuhan bahan baku per artikel produk."],
   penjualan: ["Penjualan", "Input pendapatan online/offline bulanan dan detail artikel terjual."],
   keuangan: ["Keuangan", "Buku kas ledger keuangan, cashflow 12 bulan, dan laba rugi bulanan."],
   laporan: ["Laporan", "Ringkasan revenue, COGS, gross profit, dan margin SKU."],
@@ -460,10 +459,7 @@ async function loadReports() {
 }
 
 async function loadProduksi() {
-  const [batches, boms] = await Promise.all([
-    api("/api/production/batches"),
-    api("/api/production/bom")
-  ]);
+  const batches = await api("/api/production/batches");
 
   // Summary stats
   const activeBatches = batches.filter(b => b.status === "Sedang Diproses");
@@ -549,14 +545,6 @@ async function loadProduksi() {
       `;
     }).join("");
   }
-
-  // Render BOM Table
-  table("#bomTable", [
-    { label: "Artikel", key: "product_name" },
-    { label: "Kategori", key: "product_category" },
-    { label: "Bahan Baku", key: "material_name" },
-    { label: "Kebutuhan per Pcs", render: (r) => `${r.required_qty} ${r.unit}` }
-  ], boms);
 }
 async function loadPembelian() {
   const [pos, suppliers] = await Promise.all([
@@ -781,7 +769,6 @@ document.querySelectorAll(".nav").forEach((button) => {
       }
       else if (viewId === "pembelian") loadPembelian().catch(e => console.error(e));
       else if (viewId === "produksi") loadProduksi().catch(e => console.error(e));
-      else if (viewId === "bom") loadProduksi().catch(e => console.error(e));
       else if (viewId === "penjualan") {
         loadMonthlyRevenue().catch(e => console.error(e));
         loadOptions().catch(e => console.error(e));
@@ -1157,46 +1144,7 @@ document.querySelector("#purchaseOrderList").addEventListener("click", async (ev
   }
 });
 
-// Open BOM Dialog
-document.querySelector("#newBomBtn").addEventListener("click", async () => {
-  const data = await api("/api/options");
-  const uniqueProducts = [];
-  const seenIds = new Set();
-  data.variants.forEach(row => {
-    if (!seenIds.has(row.product_id)) {
-      seenIds.add(row.product_id);
-      uniqueProducts.push(row);
-    }
-  });
 
-  document.querySelector("#bomFormProduct").innerHTML = uniqueProducts.map(p => `<option value="${p.product_id}">${p.name} (${p.category})</option>`).join("");
-  document.querySelector("#bomDialog").showModal();
-});
-
-// Save BOM
-document.querySelector("#newBomForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const data = formData(event.target);
-  
-  try {
-    await api("/api/production/bom", {
-      method: "POST",
-      body: JSON.stringify({
-        productId: Number(data.productId),
-        materialName: data.materialName,
-        requiredQty: Number(data.requiredQty),
-        unit: data.unit
-      })
-    });
-    document.querySelector("#bomDialog").close();
-    event.target.reset();
-    toast("Bill of Materials berhasil disimpan.");
-    await refreshAll();
-  } catch (e) {
-    console.error(e);
-    toast(`Gagal menyimpan BOM: ${e.message}`);
-  }
-});
 
 // Add Batch dynamic item row creator
 function addBatchItemRow(products) {
@@ -1458,16 +1406,7 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
   }
 });
 
-document.querySelector("#registerForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await api("/api/auth/register", { method: "POST", body: JSON.stringify(formData(event.target)) });
-    event.target.reset();
-    toast("Akun berhasil dibuat. Silakan login.");
-  } catch (error) {
-    toast(error.message);
-  }
-});
+
 
 document.querySelector("#logoutBtn").addEventListener("click", () => {
   authToken = "";

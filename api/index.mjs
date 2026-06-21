@@ -271,12 +271,9 @@ async function seedInventoryPools() {
 }
 
 async function seedUsers() {
-  const row = await db.prepare("SELECT COUNT(*) AS total FROM users").get();
-  const count = Number(row ? row.total : 0);
-  if (count > 0) return;
+  await db.prepare("DELETE FROM users").run();
   const stmt = await db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?) ON CONFLICT (email) DO NOTHING");
-  await stmt.run("Owner TERA", "owner@tera.local", hashPassword("teraowner"), "Owner");
-  await stmt.run("Admin TERA", "admin@tera.local", hashPassword("teraadmin"), "Admin");
+  await stmt.run("Owner TERA", "tera.essential@gmail.com", hashPassword("marksukaallen"), "Owner");
 }
 
 async function seedBaseData() {
@@ -802,18 +799,7 @@ async function api(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/register") {
-    const body = await readJson(req);
-    const email = String(body.email || "").trim().toLowerCase();
-    const password = String(body.password || "");
-    const role = body.role === "Owner" ? "Owner" : "Admin";
-    if (!body.name || !email || password.length < 6) return json(res, 400, { error: "Nama, email, dan password minimal 6 karakter wajib diisi" });
-    try {
-      await db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)")
-        .run(body.name, email, hashPassword(password), role);
-      return json(res, 201, { ok: true });
-    } catch {
-      return json(res, 409, { error: "Email sudah dipakai" });
-    }
+    return json(res, 400, { error: "Registrasi akun baru tidak diperbolehkan." });
   }
 
   const publicPaths = ["/api/auth/login", "/api/auth/register"];
