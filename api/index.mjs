@@ -1085,8 +1085,8 @@ async function api(req, res) {
     const id = Number(url.pathname.split("/").pop());
     await db.exec("BEGIN");
     try {
-      const batch = await db.prepare("SELECT batch_no FROM production_batches WHERE id = ?").get(id);
-      if (batch) {
+      const batch = await db.prepare("SELECT batch_no, status FROM production_batches WHERE id = ?").get(id);
+      if (batch && batch.status === "Sedang Diproses") {
         await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${batch.batch_no}%`);
       }
       await db.prepare("DELETE FROM production_batches WHERE id = ?").run(id);

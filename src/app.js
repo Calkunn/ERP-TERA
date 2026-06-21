@@ -466,87 +466,101 @@ async function loadProduksi() {
 
   // Summary stats
   const activeBatches = batches.filter(b => b.status === "Sedang Diproses");
-  document.querySelector("#totalActiveBatches").textContent = batches.length;
+  const historyBatches = batches.filter(b => b.status === "Selesai" || b.status === "Dibatalkan");
+
+  document.querySelector("#totalActiveBatches").textContent = activeBatches.length;
   document.querySelector("#totalInProcessBatches").textContent = activeBatches.length;
-  const totalTarget = batches.reduce((sum, b) => {
+  const totalTarget = activeBatches.reduce((sum, b) => {
     const batchQty = b.items ? b.items.reduce((s, it) => s + it.qty, 0) : 0;
     return sum + batchQty;
   }, 0);
   document.querySelector("#totalTargetPcs").textContent = number.format(totalTarget);
 
-  // Render Production Batch Cards
+  const renderCard = (b) => {
+    const itemsHtml = b.items && b.items.length ? b.items.map(it => `
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--ink); margin-bottom:4px; padding-bottom:2px; border-bottom:1px dashed var(--line);">
+        <span>${it.product_name}</span>
+        <span style="font-weight:700;">${it.qty} pcs - Biaya: Rp ${number.format(it.production_cost)}</span>
+      </div>
+    `).join("") : `<div style="font-size:11px; color:var(--muted);">Tidak ada produk.</div>`;
+
+    const totalQty = b.items ? b.items.reduce((sum, it) => sum + it.qty, 0) : 0;
+    const totalCost = b.items ? b.items.reduce((sum, it) => sum + it.production_cost, 0) : 0;
+    const isOngoing = b.status === 'Sedang Diproses';
+
+    return `
+      <article class="panel production-card">
+        <div class="production-card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <strong>${b.batch_no}</strong>
+            <div style="font-size:10px; font-weight:800; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:0.5px; display:inline-flex; align-items:center; gap:6px;">
+              <span class="badge ${b.batch_type === 'Sampling' ? 'warn' : 'marketplace'}" style="padding:1px 6px; font-size:9px; min-height:auto;">${b.batch_type}</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge ${b.status === 'Selesai' ? 'marketplace' : b.status === 'Dibatalkan' ? 'offline' : 'warn'}">${b.status}</span>
+            ${isOngoing ? `<button class="mini danger cancel-batch-btn" data-id="${b.id}" data-no="${b.batch_no}" style="padding:4px 8px; font-size:10px; min-height:auto;" type="button" title="Batalkan batch">✕</button>` : ''}
+            <button class="mini danger delete-batch-btn" data-id="${b.id}" data-no="${b.batch_no}" style="padding:4px 8px; font-size:10px; min-height:auto;" type="button" title="Hapus batch">🗑</button>
+          </div>
+        </div>
+        
+        <div class="po-card-items" style="margin: 4px 0 10px; background:var(--soft-primary); padding:10px; border-radius:8px;">
+          ${itemsHtml}
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-top:6px; color:var(--ink);">
+            <span>TOTAL TARGET</span>
+            <span>${totalQty} pcs</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-top:2px; color:var(--accent);">
+            <span>ESTIMASI BIAYA</span>
+            <span>${rupiah.format(totalCost)}</span>
+          </div>
+        </div>
+
+        <div class="production-progress-section" style="display:grid; gap:8px;">
+          <div class="batch-progress-row">
+            <span class="progress-label">Cutting</span>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" style="width: ${b.cutting_progress}%;"></div>
+            </div>
+            <span class="progress-val">${b.cutting_progress}%</span>
+          </div>
+          <div class="batch-progress-row">
+            <span class="progress-label">Sewing</span>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" style="width: ${b.sewing_progress}%;"></div>
+            </div>
+            <span class="progress-val">${b.sewing_progress}%</span>
+          </div>
+          <div class="batch-progress-row">
+            <span class="progress-label">Finishing</span>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" style="width: ${b.finishing_progress}%;"></div>
+            </div>
+            <span class="progress-val">${b.finishing_progress}%</span>
+          </div>
+        </div>
+        <div class="production-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+          <span style="font-size:12px; color:var(--muted);">Due: ${new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+          ${isOngoing ? `<button class="mini edit-progress-btn" data-id="${b.id}" data-no="${b.batch_no}" data-cutting="${b.cutting_progress}" data-sewing="${b.sewing_progress}" data-finishing="${b.finishing_progress}" type="button">Update Progress</button>` : ''}
+        </div>
+      </article>
+    `;
+  };
+
   const batchList = document.querySelector("#productionBatchList");
-  if (!batches.length) {
+  if (!activeBatches.length) {
     batchList.innerHTML = `<div class="panel" style="padding:24px; grid-column:1/-1; text-align:center; color:var(--muted);">Belum ada batch produksi aktif.</div>`;
   } else {
-    batchList.innerHTML = batches.map(b => {
-      const itemsHtml = b.items && b.items.length ? b.items.map(it => `
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--ink); margin-bottom:4px; padding-bottom:2px; border-bottom:1px dashed var(--line);">
-          <span>${it.product_name}</span>
-          <span style="font-weight:700;">${it.qty} pcs - Biaya: Rp ${number.format(it.production_cost)}</span>
-        </div>
-      `).join("") : `<div style="font-size:11px; color:var(--muted);">Tidak ada produk.</div>`;
+    batchList.innerHTML = activeBatches.map(renderCard).join("");
+  }
 
-      const totalQty = b.items ? b.items.reduce((sum, it) => sum + it.qty, 0) : 0;
-      const totalCost = b.items ? b.items.reduce((sum, it) => sum + it.production_cost, 0) : 0;
-
-      return `
-        <article class="panel production-card">
-          <div class="production-card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-              <strong>${b.batch_no}</strong>
-              <div style="font-size:10px; font-weight:800; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:0.5px; display:inline-flex; align-items:center; gap:6px;">
-                <span class="badge ${b.batch_type === 'Sampling' ? 'warn' : 'marketplace'}" style="padding:1px 6px; font-size:9px; min-height:auto;">${b.batch_type}</span>
-              </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span class="badge ${b.status === 'Selesai' ? 'marketplace' : b.status === 'Dibatalkan' ? 'offline' : 'warn'}">${b.status}</span>
-              <button class="mini danger delete-batch-btn" data-id="${b.id}" data-no="${b.batch_no}" style="padding:4px 8px; font-size:10px; min-height:auto;" type="button">🗑</button>
-            </div>
-          </div>
-          
-          <div class="po-card-items" style="margin: 4px 0 10px; background:var(--soft-primary); padding:10px; border-radius:8px;">
-            ${itemsHtml}
-            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-top:6px; color:var(--ink);">
-              <span>TOTAL TARGET</span>
-              <span>${totalQty} pcs</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-top:2px; color:var(--accent);">
-              <span>ESTIMASI BIAYA</span>
-              <span>${rupiah.format(totalCost)}</span>
-            </div>
-          </div>
-
-          <div class="production-progress-section" style="display:grid; gap:8px;">
-            <div class="batch-progress-row">
-              <span class="progress-label">Cutting</span>
-              <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: ${b.cutting_progress}%;"></div>
-              </div>
-              <span class="progress-val">${b.cutting_progress}%</span>
-            </div>
-            <div class="batch-progress-row">
-              <span class="progress-label">Sewing</span>
-              <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: ${b.sewing_progress}%;"></div>
-              </div>
-              <span class="progress-val">${b.sewing_progress}%</span>
-            </div>
-            <div class="batch-progress-row">
-              <span class="progress-label">Finishing</span>
-              <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: ${b.finishing_progress}%;"></div>
-              </div>
-              <span class="progress-val">${b.finishing_progress}%</span>
-            </div>
-          </div>
-          <div class="production-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-            <span style="font-size:12px; color:var(--muted);">Due: ${new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
-            ${b.status !== 'Selesai' && b.status !== 'Dibatalkan' ? `<button class="mini edit-progress-btn" data-id="${b.id}" data-no="${b.batch_no}" data-cutting="${b.cutting_progress}" data-sewing="${b.sewing_progress}" data-finishing="${b.finishing_progress}" type="button">Update Progress</button>` : ''}
-          </div>
-        </article>
-      `;
-    }).join("");
+  const historyList = document.querySelector("#productionHistoryList");
+  if (historyList) {
+    if (!historyBatches.length) {
+      historyList.innerHTML = `<div class="panel" style="padding:24px; grid-column:1/-1; text-align:center; color:var(--muted);">Belum ada riwayat produksi.</div>`;
+    } else {
+      historyList.innerHTML = historyBatches.map(renderCard).join("");
+    }
   }
 }
 async function loadPembelian() {
@@ -1268,7 +1282,7 @@ document.querySelector("#newBatchForm").addEventListener("submit", async (event)
 });
 
 // Listen batch list clicks for updating progress, cancelling, and deleting
-document.querySelector("#productionBatchList").addEventListener("click", async (event) => {
+const handleBatchClick = async (event) => {
   const editBtn = event.target.closest(".edit-progress-btn");
   const cancelBtn = event.target.closest(".cancel-batch-btn");
   const deleteBtn = event.target.closest(".delete-batch-btn");
@@ -1308,7 +1322,13 @@ document.querySelector("#productionBatchList").addEventListener("click", async (
       }
     }
   }
-});
+};
+
+document.querySelector("#productionBatchList").addEventListener("click", handleBatchClick);
+const historyListEl = document.querySelector("#productionHistoryList");
+if (historyListEl) {
+  historyListEl.addEventListener("click", handleBatchClick);
+}
 
 // Save progress update
 document.querySelector("#updateProgressForm").addEventListener("submit", async (event) => {

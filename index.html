@@ -350,6 +350,7 @@
         <section id="produksi" class="view">
           <div class="tab-header">
             <button class="tab-btn active" data-tab="batchTab">Batch Produksi</button>
+            <button class="tab-btn" data-tab="historyTab">Riwayat Produksi</button>
             <button id="newBatchBtn" class="action-btn-right">＋ Batch Baru</button>
           </div>
 
@@ -371,6 +372,13 @@
             </div>
             
             <div class="production-batch-grid" id="productionBatchList">
+              <!-- Cards rendered dynamically via JS -->
+            </div>
+          </div>
+
+          <!-- History Tab Content -->
+          <div id="historyTab" class="tab-content">
+            <div class="production-batch-grid" id="productionHistoryList">
               <!-- Cards rendered dynamically via JS -->
             </div>
           </div>
