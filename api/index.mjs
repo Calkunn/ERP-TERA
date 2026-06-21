@@ -883,9 +883,11 @@ async function api(req, res) {
 
       let totalCost = 0;
       for (const item of items) {
-        const itemCost = Number(item.productionCost || 0);
-        totalCost += itemCost;
-        await itemStmt.run(batchId, Number(item.productId), Number(item.qty), itemCost);
+        const itemQty = Number(item.qty || 0);
+        const unitCost = Number(item.productionCost || 0);
+        const itemTotalCost = itemQty * unitCost;
+        totalCost += itemTotalCost;
+        await itemStmt.run(batchId, Number(item.productId), itemQty, itemTotalCost);
       }
 
       // Add to monthly expenses

@@ -1214,8 +1214,8 @@ function addBatchItemRow(products) {
       <input name="qty" type="number" min="1" value="1" placeholder="Qty" required>
     </div>
     <div style="width:120px; display:flex; flex-direction:column; gap:4px;">
-      <label style="font-size:11px; font-weight:700; color:var(--muted);">Biaya Produksi (Total)</label>
-      <input name="productionCost" type="number" min="0" value="0" placeholder="Biaya Produksi" required>
+      <label style="font-size:11px; font-weight:700; color:var(--muted);">Biaya Produksi (Satuan)</label>
+      <input name="productionCost" type="number" min="0" value="0" placeholder="Biaya jahit/potong per pcs" required>
     </div>
     <button class="mini danger remove-batch-row" type="button" title="Hapus baris" style="margin-top:20px;">×</button>
   `;
