@@ -1164,6 +1164,18 @@ async function api(req, res) {
     return json(res, 200, rows);
   }
 
+  if (req.method === "GET" && url.pathname === "/api/debug-inventory") {
+    try {
+      const inventoryRaw = await db.prepare("SELECT * FROM inventory_balances").all();
+      const pools = await db.prepare("SELECT * FROM inventory_pools").all();
+      const productsRaw = await db.prepare("SELECT * FROM products").all();
+      const variantsRaw = await db.prepare("SELECT * FROM variants").all();
+      return json(res, 200, { inventoryRaw, pools, productsRaw, variantsRaw });
+    } catch (e) {
+      return json(res, 500, { error: e.message });
+    }
+  }
+
   if (req.method === "GET" && url.pathname === "/api/options") {
     return json(res, 200, {
       variants: await products(),
