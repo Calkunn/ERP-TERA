@@ -1524,16 +1524,6 @@ function generateSku(name, category, size, color) {
 
 document.querySelector("#productForm").addEventListener("input", (event) => {
   const form = event.currentTarget;
-  const online = Number(form.onlineQty.value || 0);
-  const offline = Number(form.offlineQty.value || 0);
-  const totalInput = form.querySelector("#productFormTotal");
-  if (totalInput) {
-    if (form.onlineQty.value || form.offlineQty.value) {
-      totalInput.value = online + offline;
-    } else {
-      totalInput.value = "";
-    }
-  }
 
   // Auto-generate SKU
   const name = form.name.value;

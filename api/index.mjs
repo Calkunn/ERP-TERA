@@ -717,8 +717,24 @@ async function reverseMonthlyRevenueStock(month) {
   if (!revenue) return;
   const items = await db.prepare("SELECT variant_id, online_qty, offline_qty FROM monthly_revenue_items WHERE monthly_revenue_id = ?").all(revenue.id);
   for (const item of items) {
-    if (item.online_qty) await changeStock(item.variant_id, 1, item.online_qty, "Revenue Edit Reversal", `REV-${month}`);
-    if (item.offline_qty) await changeStock(item.variant_id, 2, item.offline_qty, "Revenue Edit Reversal", `REV-${month}`);
+    if (item.online_qty) {
+      await db.prepare(`
+        INSERT INTO inventory_balances (variant_id, pool_id, qty)
+        VALUES (?, 1, 0)
+        ON CONFLICT(variant_id, pool_id) DO NOTHING
+      `).run(item.variant_id);
+      await db.prepare("UPDATE inventory_balances SET qty = qty + ? WHERE variant_id = ? AND pool_id = 1")
+        .run(item.online_qty, item.variant_id);
+    }
+    if (item.offline_qty) {
+      await db.prepare(`
+        INSERT INTO inventory_balances (variant_id, pool_id, qty)
+        VALUES (?, 2, 0)
+        ON CONFLICT(variant_id, pool_id) DO NOTHING
+      `).run(item.variant_id);
+      await db.prepare("UPDATE inventory_balances SET qty = qty + ? WHERE variant_id = ? AND pool_id = 2")
+        .run(item.offline_qty, item.variant_id);
+    }
   }
   await db.prepare("DELETE FROM stock_movements WHERE note = ? AND type = 'Monthly Revenue Sale'").run(`REV-${month}`);
   await db.prepare("DELETE FROM monthly_revenue_items WHERE monthly_revenue_id = ?").run(revenue.id);
@@ -905,14 +921,43 @@ async function api(req, res) {
     const sewing = Number(body.sewingProgress ?? 0);
     const finishing = Number(body.finishingProgress ?? 0);
     const status = (cutting === 100 && sewing === 100 && finishing === 100) ? "Selesai" : "Sedang Diproses";
+    await db.exec("BEGIN");
     try {
+      const currentBatch = await db.prepare("SELECT batch_no, status FROM production_batches WHERE id = ?").get(id);
+      if (!currentBatch) {
+        await db.exec("ROLLBACK");
+        return json(res, 404, { error: "Batch tidak ditemukan" });
+      }
+
       await db.prepare(`
         UPDATE production_batches
         SET cutting_progress = ?, sewing_progress = ?, finishing_progress = ?, status = ?
         WHERE id = ?
       `).run(cutting, sewing, finishing, status, id);
+
+      const wasCompleted = currentBatch.status === "Selesai";
+      const isCompletedNow = status === "Selesai";
+      if (!wasCompleted && isCompletedNow) {
+        const items = await db.prepare("SELECT product_id, qty FROM production_batch_items WHERE batch_id = ?").all(id);
+        for (const item of items) {
+          const variants = await db.prepare("SELECT id FROM variants WHERE product_id = ?").all(item.product_id);
+          if (variants.length > 0) {
+            const baseQty = Math.floor(item.qty / variants.length);
+            const remainder = item.qty % variants.length;
+            for (let i = 0; i < variants.length; i++) {
+              const addedQty = baseQty + (i === 0 ? remainder : 0);
+              if (addedQty > 0) {
+                await changeStock(variants[i].id, 2, addedQty, "Production", `Selesai Produksi: ${currentBatch.batch_no}`);
+              }
+            }
+          }
+        }
+      }
+
+      await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
+      await db.exec("ROLLBACK");
       return json(res, 500, { error: error.message });
     }
   }
@@ -1086,8 +1131,25 @@ async function api(req, res) {
     await db.exec("BEGIN");
     try {
       const batch = await db.prepare("SELECT batch_no, status FROM production_batches WHERE id = ?").get(id);
-      if (batch && batch.status === "Sedang Diproses") {
-        await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${batch.batch_no}%`);
+      if (batch) {
+        if (batch.status === "Sedang Diproses") {
+          await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${batch.batch_no}%`);
+        } else if (batch.status === "Selesai") {
+          const items = await db.prepare("SELECT product_id, qty FROM production_batch_items WHERE batch_id = ?").all(id);
+          for (const item of items) {
+            const variants = await db.prepare("SELECT id FROM variants WHERE product_id = ?").all(item.product_id);
+            if (variants.length > 0) {
+              const baseQty = Math.floor(item.qty / variants.length);
+              const remainder = item.qty % variants.length;
+              for (let i = 0; i < variants.length; i++) {
+                const addedQty = baseQty + (i === 0 ? remainder : 0);
+                if (addedQty > 0) {
+                  await changeStock(variants[i].id, 2, -addedQty, "Production Deletion", `Hapus Batch: ${batch.batch_no}`);
+                }
+              }
+            }
+          }
+        }
       }
       await db.prepare("DELETE FROM production_batches WHERE id = ?").run(id);
       await db.exec("COMMIT");
@@ -1118,10 +1180,14 @@ async function api(req, res) {
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/suppliers/")) {
     const id = Number(url.pathname.split("/").pop());
+    await db.exec("BEGIN");
     try {
+      await db.prepare("UPDATE purchase_orders SET supplier_id = NULL WHERE supplier_id = ?").run(id);
       await db.prepare("DELETE FROM suppliers WHERE id = ?").run(id);
+      await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
+      await db.exec("ROLLBACK");
       return json(res, 500, { error: error.message });
     }
   }
@@ -1197,8 +1263,8 @@ async function api(req, res) {
         Number(body.sellPrice || 0),
         Number(body.lowStock || 5)
       );
-      await changeStock(Number(variant.lastInsertRowid), 1, Number(body.onlineQty || 0), "Initial Stock", "Tambah artikel baru");
-      await changeStock(Number(variant.lastInsertRowid), 2, Number(body.offlineQty || 0), "Initial Stock", "Tambah artikel baru");
+      await changeStock(Number(variant.lastInsertRowid), 1, 0, "Initial Stock", "Tambah artikel baru");
+      await changeStock(Number(variant.lastInsertRowid), 2, 0, "Initial Stock", "Tambah artikel baru");
       await db.exec("COMMIT");
       return json(res, 201, { ok: true });
     } catch (error) {
@@ -1389,7 +1455,7 @@ async function api(req, res) {
 
       // Re-seed default users
       const stmt = await db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)");
-      await stmt.run("Owner TERA", "owner@tera.local", hashPassword("teraowner"), "Owner");
+      await stmt.run("Owner TERA", "tera.essential@gmail.com", hashPassword("marksukaallen"), "Owner");
       await stmt.run("Admin TERA", "admin@tera.local", hashPassword("teraadmin"), "Admin");
 
       // Clear all active sessions
