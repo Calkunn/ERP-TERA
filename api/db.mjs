@@ -51,9 +51,13 @@ class Statement {
   constructor(client, sql) {
     this.client = client;
     this.sql = translateSql(sql);
+    this.isMock = /PRAGMA/i.test(sql) || /CREATE TABLE/i.test(sql) || /DROP TABLE/i.test(sql);
   }
 
   async run(...args) {
+    if (this.isMock) {
+      return { changes: 0, lastInsertRowid: null };
+    }
     // Flatten array arguments if nested arrays are passed
     const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
     const res = await this.client.query(this.sql, flatArgs);
@@ -64,12 +68,18 @@ class Statement {
   }
 
   async get(...args) {
+    if (this.isMock) {
+      return null;
+    }
     const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
     const res = await this.client.query(this.sql, flatArgs);
     return res.rows[0] || null;
   }
 
   async all(...args) {
+    if (this.isMock) {
+      return [];
+    }
     const flatArgs = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
     const res = await this.client.query(this.sql, flatArgs);
     return res.rows;
