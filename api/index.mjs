@@ -587,7 +587,7 @@ async function dashboard() {
     ORDER BY net_revenue DESC
   `).all();
   const inventory = await db.prepare(`
-    SELECT ip.name AS pool, SUM(ib.qty * v.cost_price) AS value, SUM(ib.qty) AS qty
+    SELECT ip.name AS pool, SUM(ib.qty * v.sell_price) AS value, SUM(ib.qty) AS qty
     FROM inventory_balances ib
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
