@@ -701,7 +701,7 @@ async function loadKeuangan() {
 
 async function loadOptions() {
   const data = await api("/api/options");
-  if (!productRows.length) productRows = data.variants;
+  productRows = data.variants;
   
   const variantOptions = data.variants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name} (${v.size}/${v.color})</option>`).join("");
   for (const id of ["receiveVariant", "transferVariant"]) {
@@ -719,7 +719,19 @@ async function loadOptions() {
   if (toPoolEl) toPoolEl.selectedIndex = 1;
   
   const revItemsRowsEl = document.querySelector("#revenueItemRows");
-  if (revItemsRowsEl && !revItemsRowsEl.children.length) addRevenueItemRow();
+  if (revItemsRowsEl) {
+    const selects = revItemsRowsEl.querySelectorAll("select");
+    selects.forEach(select => {
+      const currentVal = select.value;
+      select.innerHTML = data.variants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name}</option>`).join("");
+      if (currentVal && data.variants.some(v => String(v.variant_id) === String(currentVal))) {
+        select.value = currentVal;
+      }
+    });
+    if (!revItemsRowsEl.children.length) {
+      addRevenueItemRow();
+    }
+  }
 }
 
 async function refreshAll() {
@@ -770,7 +782,10 @@ document.querySelectorAll(".nav").forEach((button) => {
       else if (viewId === "pembelian") loadPembelian().catch(e => console.error(e));
       else if (viewId === "produksi") loadProduksi().catch(e => console.error(e));
       else if (viewId === "bom") loadProduksi().catch(e => console.error(e));
-      else if (viewId === "penjualan") loadMonthlyRevenue().catch(e => console.error(e));
+      else if (viewId === "penjualan") {
+        loadMonthlyRevenue().catch(e => console.error(e));
+        loadOptions().catch(e => console.error(e));
+      }
       else if (viewId === "keuangan") loadKeuangan().catch(e => console.error(e));
       else if (viewId === "laporan") loadReports().catch(e => console.error(e));
     }, 100);

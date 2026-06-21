@@ -881,9 +881,23 @@ async function api(req, res) {
         VALUES (?, ?, ?, ?)
       `);
 
+      let totalCost = 0;
       for (const item of items) {
-        await itemStmt.run(batchId, Number(item.productId), Number(item.qty), Number(item.productionCost || 0));
+        const itemCost = Number(item.productionCost || 0);
+        totalCost += itemCost;
+        await itemStmt.run(batchId, Number(item.productId), Number(item.qty), itemCost);
       }
+
+      // Add to monthly expenses
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const currentMonthStr = `${year}-${month}`;
+
+      await db.prepare(`
+        INSERT INTO monthly_expenses (month, category, amount, note)
+        VALUES (?, ?, ?, ?)
+      `).run(currentMonthStr, "Produksi", totalCost, `Produksi: ${batchNo}`);
 
       await db.exec("COMMIT");
       return json(res, 201, { ok: true });
@@ -1078,10 +1092,17 @@ async function api(req, res) {
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/production/batches/")) {
     const id = Number(url.pathname.split("/").pop());
+    await db.exec("BEGIN");
     try {
+      const batch = await db.prepare("SELECT batch_no FROM production_batches WHERE id = ?").get(id);
+      if (batch) {
+        await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${batch.batch_no}%`);
+      }
       await db.prepare("DELETE FROM production_batches WHERE id = ?").run(id);
+      await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
+      await db.exec("ROLLBACK");
       return json(res, 500, { error: error.message });
     }
   }
@@ -1089,10 +1110,17 @@ async function api(req, res) {
   if (req.method === "POST" && url.pathname.startsWith("/api/production/batches/") && url.pathname.endsWith("/cancel")) {
     const parts = url.pathname.split("/");
     const id = Number(parts[parts.length - 2]);
+    await db.exec("BEGIN");
     try {
+      const batch = await db.prepare("SELECT batch_no FROM production_batches WHERE id = ?").get(id);
+      if (batch) {
+        await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${batch.batch_no}%`);
+      }
       await db.prepare("UPDATE production_batches SET status = 'Dibatalkan' WHERE id = ?").run(id);
+      await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
+      await db.exec("ROLLBACK");
       return json(res, 500, { error: error.message });
     }
   }
