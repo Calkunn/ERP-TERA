@@ -1630,9 +1630,14 @@ document.querySelector("#transferForm").addEventListener("submit", async (event)
   await refreshAll();
 });
 
-// Debounced Window Resize handler to avoid chart stretch
+// Debounced Window Resize handler to avoid chart stretch, ignoring height changes on mobile (e.g. URL bar show/hide)
+let lastWidth = window.innerWidth;
 window.addEventListener("resize", () => {
   if (authToken) {
+    const currentWidth = window.innerWidth;
+    if (currentWidth === lastWidth) return;
+    lastWidth = currentWidth;
+
     if (window.resizeTimeout) clearTimeout(window.resizeTimeout);
     window.resizeTimeout = setTimeout(() => {
       refreshAll().catch((err) => console.warn("Error refreshing on resize:", err));
