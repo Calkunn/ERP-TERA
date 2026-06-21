@@ -757,6 +757,10 @@ async function refreshAll() {
 // Side Navigation Switching Handler
 document.querySelectorAll(".nav").forEach((button) => {
   button.addEventListener("click", () => {
+    // Hide mobile sidebar on navigation click
+    document.querySelector(".sidebar")?.classList.remove("open");
+    document.querySelector("#sidebarOverlay")?.classList.add("hidden");
+
     document.querySelectorAll(".nav, .view").forEach((el) => el.classList.remove("active"));
     button.classList.add("active");
     
@@ -807,6 +811,17 @@ document.querySelector("#themeToggle").addEventListener("click", () => {
   setTimeout(() => {
     refreshAll().catch((error) => toast(error.message));
   }, 100);
+});
+
+// Mobile Sidebar Menu Toggle Handler
+document.querySelector("#menuToggleBtn")?.addEventListener("click", () => {
+  document.querySelector(".sidebar")?.classList.add("open");
+  document.querySelector("#sidebarOverlay")?.classList.remove("hidden");
+});
+
+document.querySelector("#sidebarOverlay")?.addEventListener("click", () => {
+  document.querySelector(".sidebar")?.classList.remove("open");
+  document.querySelector("#sidebarOverlay")?.classList.add("hidden");
 });
 
 // Generic tab switching (within Pembelian, Produksi)

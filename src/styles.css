@@ -815,6 +815,46 @@ dialog[open]::backdrop {
   font-weight: 900;
 }
 
+/* Sidebar Overlay (Backdrop) */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(9, 9, 11, 0.45);
+  backdrop-filter: blur(8px) saturate(140%);
+  z-index: 999;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.hidden {
+  display: none !important;
+  opacity: 0;
+}
+
+/* Hamburger Menu Toggle Button */
+.menu-toggle-btn {
+  display: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 12px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.menu-toggle-btn:hover {
+  background-color: var(--soft-primary);
+}
+
 @media (max-width: 1120px) {
   .metrics, .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid, .item-row {
     grid-template-columns: 1fr 1fr;
@@ -827,56 +867,60 @@ dialog[open]::backdrop {
   }
 
   .sidebar {
-    position: static;
-    height: auto;
-    padding: 16px;
-    gap: 16px;
-    display: flex;
-    flex-direction: column;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.45);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
   }
 
   .sidebar-nav {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-bottom: 0;
-    width: 100%;
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    display: grid;
     gap: 16px;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-  }
-  
-  .sidebar-nav::-webkit-scrollbar {
-    display: none;
+    width: 100%;
   }
 
   .nav-group {
-    display: flex;
-    flex-direction: row;
-    margin-bottom: 0 !important;
-    gap: 6px;
+    display: grid;
+    gap: 4px;
+    margin-bottom: 20px;
   }
 
   .nav-group-title {
-    display: none !important;
+    display: block !important;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--muted);
+    margin-bottom: 6px;
+    padding-left: 12px;
+    letter-spacing: 0.8px;
   }
 
   .nav {
     white-space: nowrap;
-    width: auto;
-    padding: 8px 12px;
-    justify-content: center;
+    width: 100%;
+    padding: 10px 14px;
+    justify-content: flex-start;
   }
 
   .nav.active::before {
-    display: none !important;
+    display: block !important;
   }
 
   .sidebar-bottom {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 12px;
     width: 100%;
@@ -884,7 +928,21 @@ dialog[open]::backdrop {
   }
 
   .sidebar-user-section {
-    flex-grow: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .sidebar-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .menu-toggle-btn {
+    display: flex;
   }
 
   .metrics, .grid.two, .form-grid, .article-form, .revenue-form, .expense-form, .dialog-grid, .item-row, .split {
@@ -892,13 +950,19 @@ dialog[open]::backdrop {
   }
 
   .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
     margin-bottom: 16px;
+    gap: 8px;
+  }
+
+  .search-bar {
+    width: 100%;
+    max-width: 320px;
   }
 
   .top-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 }
 
