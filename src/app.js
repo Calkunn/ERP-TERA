@@ -1439,15 +1439,53 @@ function setRevenueItems(items = []) {
   document.querySelector("#revenueItemRows").innerHTML = "";
   if (!items.length) addRevenueItemRow();
   items.forEach((item) => addRevenueItemRow(item));
+  recalculateRevenues();
 }
 
-document.querySelector("#addRevenueItem").addEventListener("click", () => addRevenueItemRow());
+function recalculateRevenues() {
+  let onlineSum = 0;
+  let offlineSum = 0;
+  
+  const rows = document.querySelectorAll("#revenueItemRows .item-row");
+  rows.forEach(row => {
+    const select = row.querySelector('select[name="variantId"]');
+    const onlineInput = row.querySelector('input[name="onlineQty"]');
+    const offlineInput = row.querySelector('input[name="offlineQty"]');
+    
+    if (select && onlineInput && offlineInput) {
+      const variantId = select.value;
+      const onlineQty = Number(onlineInput.value || 0);
+      const offlineQty = Number(offlineInput.value || 0);
+      
+      const variant = productRows.find(v => String(v.variant_id) === String(variantId));
+      if (variant) {
+        onlineSum += onlineQty * (variant.sell_price || 0);
+        offlineSum += offlineQty * (variant.sell_price || 0);
+      }
+    }
+  });
+  
+  const form = document.querySelector("#monthlyRevenueForm");
+  if (form) {
+    form.querySelector('input[name="onlineRevenue"]').value = onlineSum || 0;
+    form.querySelector('input[name="offlineRevenue"]').value = offlineSum || 0;
+  }
+}
+
+document.querySelector("#addRevenueItem").addEventListener("click", () => {
+  addRevenueItemRow();
+  recalculateRevenues();
+});
 
 document.querySelector("#revenueItemRows").addEventListener("click", (event) => {
   if (!event.target.closest(".remove-row")) return;
   event.target.closest(".item-row").remove();
   if (!document.querySelector("#revenueItemRows").children.length) addRevenueItemRow();
+  recalculateRevenues();
 });
+
+document.querySelector("#revenueItemRows").addEventListener("input", recalculateRevenues);
+document.querySelector("#revenueItemRows").addEventListener("change", recalculateRevenues);
 
 document.querySelector("#movementMonth").addEventListener("change", () => {
   loadMovements().catch((error) => toast(error.message));
