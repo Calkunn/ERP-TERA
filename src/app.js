@@ -943,20 +943,28 @@ document.querySelector("#productsTable").addEventListener("click", (event) => {
 document.querySelector("#drawerEditProductForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = formData(event.target);
-  await api(`/api/products/${data.variantId}`, { method: "PUT", body: JSON.stringify(data) });
-  closeDrawer();
-  toast("Detail artikel berhasil diperbarui.");
-  await refreshAll();
+  try {
+    await api(`/api/products/${data.variantId}`, { method: "PUT", body: JSON.stringify(data) });
+    closeDrawer();
+    toast("Detail artikel berhasil diperbarui.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Drawer delete variant
 document.querySelector("#drawerDeleteProductBtn").addEventListener("click", async () => {
   const variantId = document.querySelector("#drawerEditProductForm").variantId.value;
   if (!confirm("Hapus artikel ini dari daftar aktif?")) return;
-  await api(`/api/products/${variantId}`, { method: "DELETE" });
-  closeDrawer();
-  toast("Artikel berhasil dinonaktifkan.");
-  await refreshAll();
+  try {
+    await api(`/api/products/${variantId}`, { method: "DELETE" });
+    closeDrawer();
+    toast("Artikel berhasil dinonaktifkan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Barcode Print Window
@@ -1125,30 +1133,38 @@ document.querySelector("#newPoForm").addEventListener("submit", async (event) =>
     costPrice: Number(row.querySelector('[name="costPrice"]').value)
   }));
   
-  await api("/api/purchase-orders", {
-    method: "POST",
-    body: JSON.stringify({
-      poNo: data.poNo,
-      supplierId: Number(data.supplierId),
-      poolId: Number(data.poolId),
-      status: data.status,
-      items
-    })
-  });
-  
-  document.querySelector("#poDialog").close();
-  event.target.reset();
-  toast("Purchase Order berhasil disimpan.");
-  await refreshAll();
+  try {
+    await api("/api/purchase-orders", {
+      method: "POST",
+      body: JSON.stringify({
+        poNo: data.poNo,
+        supplierId: Number(data.supplierId),
+        poolId: Number(data.poolId),
+        status: data.status,
+        items
+      })
+    });
+    
+    document.querySelector("#poDialog").close();
+    event.target.reset();
+    toast("Purchase Order berhasil disimpan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Add Supplier
 document.querySelector("#supplierForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await api("/api/suppliers", { method: "POST", body: JSON.stringify(formData(event.target)) });
-  event.target.reset();
-  toast("Supplier baru ditambahkan.");
-  await refreshAll();
+  try {
+    await api("/api/suppliers", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    event.target.reset();
+    toast("Supplier baru ditambahkan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Mark PO Complete/Cancel/Delete Event Listener
@@ -1378,17 +1394,21 @@ if (historyListEl) {
 document.querySelector("#updateProgressForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = formData(event.target);
-  await api(`/api/production/batches/${data.batchId}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      cuttingProgress: Number(data.cuttingProgress),
-      sewingProgress: Number(data.sewingProgress),
-      finishingProgress: Number(data.finishingProgress)
-    })
-  });
-  document.querySelector("#progressDialog").close();
-  toast("Progress batch produksi diperbarui.");
-  await refreshAll();
+  try {
+    await api(`/api/production/batches/${data.batchId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        cuttingProgress: Number(data.cuttingProgress),
+        sewingProgress: Number(data.sewingProgress),
+        finishingProgress: Number(data.finishingProgress)
+      })
+    });
+    document.querySelector("#progressDialog").close();
+    toast("Progress batch produksi diperbarui.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Delete Supplier Event Listener
@@ -1524,12 +1544,16 @@ document.querySelector("#logoutBtn").addEventListener("click", () => {
 // Add variant
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await api("/api/products", { method: "POST", body: JSON.stringify(formData(event.target)) });
-  event.target.reset();
-  const totalInput = event.target.querySelector("#productFormTotal");
-  if (totalInput) totalInput.value = "";
-  toast("Artikel baru TERA berhasil ditambahkan.");
-  await refreshAll();
+  try {
+    await api("/api/products", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    event.target.reset();
+    const totalInput = event.target.querySelector("#productFormTotal");
+    if (totalInput) totalInput.value = "";
+    toast("Artikel baru TERA berhasil ditambahkan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 function generateSku(name, category, size, color) {
@@ -1575,12 +1599,16 @@ document.querySelector("#productForm").addEventListener("input", (event) => {
 
 document.querySelector("#monthlyRevenueForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await api("/api/monthly-revenues", {
-    method: "POST",
-    body: JSON.stringify({ ...formData(event.target), items: revenueItemsFromForm() })
-  });
-  toast("Pendapatan bulanan tersimpan.");
-  await refreshAll();
+  try {
+    await api("/api/monthly-revenues", {
+      method: "POST",
+      body: JSON.stringify({ ...formData(event.target), items: revenueItemsFromForm() })
+    });
+    toast("Pendapatan bulanan tersimpan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 document.querySelector("#monthlyRevenueTable").addEventListener("click", async (event) => {
@@ -1600,18 +1628,26 @@ document.querySelector("#monthlyRevenueTable").addEventListener("click", async (
   }
   if (deleteButton) {
     if (!confirm("Hapus riwayat pendapatan bulan ini?")) return;
-    await api(`/api/monthly-revenues/${encodeURIComponent(deleteButton.dataset.month)}`, { method: "DELETE" });
-    toast("Pendapatan bulan itu dihapus.");
-    await refreshAll();
+    try {
+      await api(`/api/monthly-revenues/${encodeURIComponent(deleteButton.dataset.month)}`, { method: "DELETE" });
+      toast("Pendapatan bulan itu dihapus.");
+      await refreshAll();
+    } catch (error) {
+      toast(error.message);
+    }
   }
 });
 
 document.querySelector("#expenseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await api("/api/monthly-expenses", { method: "POST", body: JSON.stringify(formData(event.target)) });
-  event.target.reset();
-  toast("Pengeluaran bulanan berhasil disimpan.");
-  await refreshAll();
+  try {
+    await api("/api/monthly-expenses", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    event.target.reset();
+    toast("Pengeluaran bulanan berhasil disimpan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 document.querySelector("#movementsTable").addEventListener("click", async (event) => {
@@ -1642,20 +1678,28 @@ document.querySelector("#expenseTable").addEventListener("click", async (event) 
 
 document.querySelector("#receiveForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await api("/api/stock/receive", { method: "POST", body: JSON.stringify(formData(event.target)) });
-  event.target.reset();
-  toast("Stock berhasil ditambahkan.");
-  await refreshAll();
+  try {
+    await api("/api/stock/receive", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    event.target.reset();
+    toast("Stock berhasil ditambahkan.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 document.querySelector("#transferForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = formData(event.target);
   if (data.fromPoolId === data.toPoolId) return toast("Pool asal dan tujuan harus berbeda.");
-  await api("/api/stock/transfer", { method: "POST", body: JSON.stringify(data) });
-  event.target.reset();
-  toast("Transfer stock selesai.");
-  await refreshAll();
+  try {
+    await api("/api/stock/transfer", { method: "POST", body: JSON.stringify(data) });
+    event.target.reset();
+    toast("Transfer stock selesai.");
+    await refreshAll();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 // Debounced Window Resize handler to avoid chart stretch, ignoring height changes on mobile (e.g. URL bar show/hide)

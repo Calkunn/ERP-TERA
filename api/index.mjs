@@ -483,6 +483,17 @@ async function changeStock(variantId, poolId, qty, type, note, createdAt = "") {
     VALUES (?, ?, 0)
     ON CONFLICT(variant_id, pool_id) DO NOTHING
   `).run(variantId, poolId);
+
+  const current = await db.prepare("SELECT qty FROM inventory_balances WHERE variant_id = ? AND pool_id = ?").get(variantId, poolId);
+  const currentQty = current ? current.qty : 0;
+  if (currentQty + qty < 0) {
+    const variant = await db.prepare("SELECT sku FROM variants WHERE id = ?").get(variantId);
+    const pool = await db.prepare("SELECT name FROM inventory_pools WHERE id = ?").get(poolId);
+    const skuName = variant ? variant.sku : `ID ${variantId}`;
+    const poolName = pool ? pool.name : `Pool ${poolId}`;
+    throw new Error(`Stok ${skuName} di ${poolName} tidak mencukupi! Stok saat ini: ${currentQty}, dikurangi: ${Math.abs(qty)}`);
+  }
+
   await db.prepare("UPDATE inventory_balances SET qty = qty + ? WHERE variant_id = ? AND pool_id = ?").run(qty, variantId, poolId);
   if (createdAt) {
     await db.prepare("INSERT INTO stock_movements (variant_id, pool_id, type, qty, note, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
@@ -1381,6 +1392,17 @@ async function api(req, res) {
     if (!movement) return json(res, 404, { error: "Riwayat pergerakan tidak ditemukan" });
     await db.exec("BEGIN");
     try {
+      const current = await db.prepare("SELECT qty FROM inventory_balances WHERE variant_id = ? AND pool_id = ?").get(movement.variant_id, movement.pool_id);
+      const currentQty = current ? current.qty : 0;
+      if (currentQty - movement.qty < 0) {
+        const variant = await db.prepare("SELECT sku FROM variants WHERE id = ?").get(movement.variant_id);
+        const pool = await db.prepare("SELECT name FROM inventory_pools WHERE id = ?").get(movement.pool_id);
+        const skuName = variant ? variant.sku : `ID ${movement.variant_id}`;
+        const poolName = pool ? pool.name : `Pool ${movement.pool_id}`;
+        await db.exec("ROLLBACK");
+        return json(res, 400, { error: `Stok ${skuName} di ${poolName} tidak mencukupi untuk menghapus riwayat ini! Stok saat ini: ${currentQty}, dikurangi: ${movement.qty}` });
+      }
+
       await db.prepare("UPDATE inventory_balances SET qty = qty - ? WHERE variant_id = ? AND pool_id = ?")
         .run(movement.qty, movement.variant_id, movement.pool_id);
       await db.prepare("DELETE FROM stock_movements WHERE id = ?").run(id);
@@ -1394,8 +1416,15 @@ async function api(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/stock/receive") {
     const body = await readJson(req);
-    await changeStock(Number(body.variantId), Number(body.poolId), Number(body.qty), "Purchase", body.note || "Receive stock");
-    return json(res, 201, { ok: true });
+    await db.exec("BEGIN");
+    try {
+      await changeStock(Number(body.variantId), Number(body.poolId), Number(body.qty), "Purchase", body.note || "Receive stock");
+      await db.exec("COMMIT");
+      return json(res, 201, { ok: true });
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: error.message });
+    }
   }
 
   if (req.method === "POST" && url.pathname === "/api/stock/transfer") {
