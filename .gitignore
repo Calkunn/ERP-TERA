@@ -1,0 +1,7 @@
+data/erp.sqlite
+node_modules/
+server.log
+server.err.log
+.gemini/
+task.md
+dist/

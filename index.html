@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TERA ERP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles.css">
+  </head>
+  <body>
+    <section id="loginScreen" class="login-screen">
+      <div class="login-card">
+        <div class="login-brand">
+          <span class="mark">T</span>
+          <div>
+            <h1>TERA ERP</h1>
+            <p>Dashboard penjualan dan stock untuk clothing brand kamu.</p>
+          </div>
+        </div>
+        <form id="loginForm" class="stack">
+          <input name="email" type="email" placeholder="Email" value="owner@tera.local" required>
+          <input name="password" type="password" placeholder="Password" value="teraowner" required>
+          <button type="submit">↳ Masuk</button>
+          <small>Contoh awal: owner@tera.local / teraowner atau admin@tera.local / teraadmin</small>
+        </form>
+        <details>
+          <summary>Buat akun Owner/Admin sendiri</summary>
+          <form id="registerForm" class="stack compact">
+            <input name="name" placeholder="Nama" required>
+            <input name="email" type="email" placeholder="Email baru" required>
+            <input name="password" type="password" minlength="6" placeholder="Password minimal 6 karakter" required>
+            <select name="role">
+              <option>Owner</option>
+              <option>Admin</option>
+            </select>
+            <button type="submit">＋ Buat Akun</button>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <div id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="mark">T</span>
+          <div>
+            <strong>TERA</strong>
+            <small>STREETWEAR OS</small>
+          </div>
+        </div>
+        
+        <div class="sidebar-nav">
+          <div class="nav-group">
+            <div class="nav-group-title">OPERASIONAL</div>
+            <button class="nav active" data-view="dashboard">⌂ Dashboard</button>
+            <button class="nav" data-view="products">▦ Produk</button>
+            <button class="nav" data-view="inventori">⛃ Inventori</button>
+            <button class="nav" data-view="pembelian">🛒 Pembelian</button>
+            <button class="nav" data-view="produksi">🏭 Produksi</button>
+            <button class="nav" data-view="bom">📜 Bill of Materials</button>
+          </div>
+
+          <div class="nav-group">
+            <div class="nav-group-title">BISNIS</div>
+            <button class="nav" data-view="penjualan">↗ Penjualan</button>
+            <button class="nav" data-view="keuangan">💰 Keuangan</button>
+            <button class="nav" data-view="laporan">≡ Laporan</button>
+          </div>
+
+          <div class="nav-group">
+            <div class="nav-group-title">SISTEM</div>
+            <button class="nav" data-view="pengaturan">⚙ Pengaturan</button>
+          </div>
+        </div>
+        
+        <div class="sidebar-bottom">
+          <div class="sidebar-user-section">
+            <div class="user-profile">
+              <div class="avatar" id="userAvatar">AS</div>
+              <div class="user-info">
+                <span class="user-name" id="currentUser">Andi Setiawan</span>
+                <span class="user-role" id="currentUserRole">OWNER</span>
+              </div>
+            </div>
+            <button id="logoutBtn" class="icon-btn danger" type="button" title="Keluar">⏻</button>
+          </div>
+          <div class="sidebar-actions">
+            <div class="sidebar-action-buttons">
+              <button id="themeToggle" class="icon-btn" type="button" title="Ganti tema">☀️</button>
+              <button class="icon-btn notification-btn" type="button" title="Notifikasi">🔔</button>
+            </div>
+            <div class="sidebar-version">v1.0.0 • © TERA</div>
+          </div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="search-bar">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="globalSearch" placeholder="Cari produk, order, customer...">
+            </div>
+          </div>
+        </header>
+
+        <div class="page-header">
+          <div class="page-header-context" id="pageContext">OPERASIONAL</div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Track penjualan, distribusi stock, dan sisa stock artikel TERA.</p>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <section id="dashboard" class="view active">
+          <div class="metrics" id="metrics"></div>
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Track Penjualan Bulanan</h2>
+                <span class="hint">Online vs Offline</span>
+              </div>
+              <canvas id="salesChart" height="250"></canvas>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Distribusi Stock</h2>
+                <span class="hint">Online Inventory / Offline Inventory</span>
+              </div>
+              <canvas id="stockPieChart" height="250"></canvas>
+            </section>
+          </div>
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Sisa Stock per Artikel</h2>
+                <span class="hint">Total semua varian</span>
+              </div>
+              <canvas id="articleStockChart" height="280"></canvas>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Low Stock Alert</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="lowStockTable"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- PRODUK (PRODUCTS) VIEW -->
+        <section id="products" class="view">
+          <section class="panel form-panel">
+            <div class="panel-head">
+              <h2>Tambah Artikel Baru</h2>
+              <span class="hint">Sekali input langsung punya stock online/offline</span>
+            </div>
+            <form id="productForm" class="form-grid article-form">
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Nama Artikel</label>
+                <input name="name" placeholder="Nama artikel, contoh URB Boxy Tee" required>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">SKU</label>
+                <input name="sku" placeholder="SKU, contoh URB-TS-001" required>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Kategori</label>
+                <select name="category">
+                  <option>Bahan Baku</option>
+                  <option>Aksesoris</option>
+                  <option>T-Shirt</option>
+                  <option>Hoodie</option>
+                  <option>Shirt</option>
+                  <option>Pants</option>
+                  <option>Jacket</option>
+                  <option>Cap</option>
+                  <option>Tote Bag</option>
+                  <option>Outerwear</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Size</label>
+                <input name="size" placeholder="Size" value="M">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Warna</label>
+                <input name="color" placeholder="Warna" value="Black">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">HPP</label>
+                <input name="costPrice" type="number" min="0" placeholder="HPP">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Harga Jual</label>
+                <input name="sellPrice" type="number" min="0" placeholder="Harga jual">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Stock Online</label>
+                <input name="onlineQty" type="number" min="0" placeholder="Stock Online">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Stock Offline</label>
+                <input name="offlineQty" type="number" min="0" placeholder="Stock Offline">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Total</label>
+                <input id="productFormTotal" placeholder="Total" readonly>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Batas Low Stock</label>
+                <input name="lowStock" type="number" min="1" value="5" placeholder="Batas low stock">
+              </div>
+              <div style="display:flex; align-items:flex-end;">
+                <button type="submit" style="width:100%;">＋ Tambah</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Daftar Artikel & Sisa Stock</h2>
+              <span class="hint">Klik baris produk untuk edit detail & melihat varian lengkap</span>
+            </div>
+            <div class="table-wrap">
+              <table id="productsTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <!-- INVENTORI VIEW -->
+        <section id="inventori" class="view">
+          <div class="grid two">
+            <section class="panel form-panel">
+              <div class="panel-head">
+                <h2>Terima Stock</h2>
+              </div>
+              <form id="receiveForm" class="stack">
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
+                  <select name="variantId" id="receiveVariant" required></select>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Inventory Pool</label>
+                  <select name="poolId" id="receivePool" required></select>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
+                  <input name="qty" type="number" min="1" value="1" required>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan</label>
+                  <input name="note" placeholder="Catatan">
+                </div>
+                <button type="submit">＋ Stock</button>
+              </form>
+            </section>
+            <section class="panel form-panel">
+              <div class="panel-head">
+                <h2>Transfer Stock</h2>
+              </div>
+              <form id="transferForm" class="stack">
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
+                  <select name="variantId" id="transferVariant" required></select>
+                </div>
+                <div class="split">
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Dari Pool</label>
+                    <select name="fromPoolId" id="fromPool" required></select>
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Ke Pool</label>
+                    <select name="toPoolId" id="toPool" required></select>
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
+                  <input name="qty" type="number" min="1" value="1" required>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan Transfer</label>
+                  <input name="note" placeholder="Catatan transfer">
+                </div>
+                <button type="submit">⇄ Transfer</button>
+              </form>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Riwayat Pergerakan Stock</h2>
+              <input id="movementMonth" class="month-filter" type="month" title="Filter bulan">
+            </div>
+            <div class="table-wrap">
+              <table id="movementsTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <!-- PEMBELIAN (PURCHASE ORDER & SUPPLIER) VIEW -->
+        <section id="pembelian" class="view">
+          <div class="tab-header">
+            <button class="tab-btn active" data-tab="poTab">Purchase Order</button>
+            <button class="tab-btn" data-tab="supplierTab">Supplier</button>
+            <button id="newPoBtn" class="action-btn-right">＋ PO Baru</button>
+          </div>
+
+          <!-- PO Tab Content -->
+          <div id="poTab" class="tab-content active">
+            <div class="metrics-summary">
+              <div class="metric-summary-card">
+                <span>TOTAL PO AKTIF</span>
+                <strong id="totalActivePos">0</strong>
+              </div>
+              <div class="metric-summary-card accent">
+                <span>SEDANG DIKIRIM</span>
+                <strong id="totalShippedPos">0</strong>
+              </div>
+              <div class="metric-summary-card">
+                <span>TOTAL PENGELUARAN PO</span>
+                <strong id="totalPoExpenses">Rp 0</strong>
+              </div>
+            </div>
+            
+            <div id="purchaseOrderList" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+              <!-- Cards rendered dynamically via JS -->
+            </div>
+          </div>
+
+          <!-- Supplier Tab Content -->
+          <div id="supplierTab" class="tab-content">
+            <div class="grid two">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Daftar Supplier</h2>
+                </div>
+                <div class="table-wrap">
+                  <table id="supplierTable"></table>
+                </div>
+              </section>
+              <section class="panel form-panel">
+                <div class="panel-head">
+                  <h2>Tambah Supplier Baru</h2>
+                </div>
+                <form id="supplierForm" class="stack">
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Supplier</label>
+                    <input name="name" placeholder="Nama Supplier" required>
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kontak / Telepon</label>
+                    <input name="contact" placeholder="Kontak / Telepon">
+                  </div>
+                  <button type="submit">＋ Tambah Supplier</button>
+                </form>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <!-- PRODUKSI VIEW -->
+        <section id="produksi" class="view">
+          <div class="tab-header">
+            <button class="tab-btn active" data-tab="batchTab">Batch Produksi</button>
+            <button id="newBatchBtn" class="action-btn-right">＋ Batch Baru</button>
+          </div>
+
+          <!-- Batch Tab Content -->
+          <div id="batchTab" class="tab-content active">
+            <div class="metrics-summary">
+              <div class="metric-summary-card">
+                <span>TOTAL BATCH AKTIF</span>
+                <strong id="totalActiveBatches">0</strong>
+              </div>
+              <div class="metric-summary-card accent">
+                <span>SEDANG DIPROSES</span>
+                <strong id="totalInProcessBatches">0</strong>
+              </div>
+              <div class="metric-summary-card">
+                <span>TOTAL TARGET (PCS)</span>
+                <strong id="totalTargetPcs">0</strong>
+              </div>
+            </div>
+            
+            <div class="production-batch-grid" id="productionBatchList">
+              <!-- Cards rendered dynamically via JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- BILL OF MATERIALS VIEW -->
+        <section id="bom" class="view">
+          <div class="tab-header">
+            <button class="tab-btn active" data-tab="bomTab">Bill of Materials</button>
+            <button id="newBomBtn" class="action-btn-right">＋ BOM Baru</button>
+          </div>
+
+          <div id="bomTab" class="tab-content active">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Daftar Bill of Materials (BOM)</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="bomTable"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- PENJUALAN (REVENUE) VIEW -->
+        <section id="penjualan" class="view">
+          <section class="panel form-panel">
+            <div class="panel-head">
+              <h2>Input Pendapatan Bulanan</h2>
+              <span class="hint">Masukkan total bulan itu, lalu sistem bandingkan</span>
+            </div>
+            <form id="monthlyRevenueForm" class="form-grid revenue-form">
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Bulan</label>
+                <input name="month" type="month" required>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Pendapatan Online</label>
+                <input name="onlineRevenue" type="number" min="0" placeholder="Pendapatan online" required>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Pendapatan Offline</label>
+                <input name="offlineRevenue" type="number" min="0" placeholder="Pendapatan offline" required>
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Catatan Online</label>
+                <input name="onlineNotes" placeholder="Catatan online">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Catatan Offline</label>
+                <input name="offlineNotes" placeholder="Catatan offline">
+              </div>
+              <div style="display:flex; align-items:flex-end;">
+                <button type="submit" style="width:100%;">✓ Simpan</button>
+              </div>
+            </form>
+            <div class="revenue-items">
+              <div class="panel-head slim">
+                <h2>Artikel Terjual Bulan Ini</h2>
+                <button id="addRevenueItem" class="mini" type="button">＋ Baris</button>
+              </div>
+              <div id="revenueItemRows" class="item-rows"></div>
+            </div>
+          </section>
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Perbandingan Pendapatan</h2>
+              </div>
+              <canvas id="revenueCompareChart" height="280"></canvas>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Riwayat Input</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="monthlyRevenueTable"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- KEUANGAN (KAS & LABA RUGI) VIEW -->
+        <section id="keuangan" class="view">
+          <div class="metrics-summary select-none">
+            <div class="metric-summary-card green">
+              <span>TOTAL PEMASUKAN</span>
+              <strong id="financeTotalIncome">Rp 0</strong>
+            </div>
+            <div class="metric-summary-card red">
+              <span>TOTAL PENGELUARAN</span>
+              <strong id="financeTotalExpense">Rp 0</strong>
+            </div>
+            <div class="metric-summary-card" id="financeNetProfitCard">
+              <span>LABA BERSIH</span>
+              <strong id="financeNetProfit">Rp 0</strong>
+            </div>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Arus Kas 12 Bulan</h2>
+              <span class="hint">Pemasukan vs pengeluaran per bulan</span>
+            </div>
+            <canvas id="profitChart" height="280"></canvas>
+          </section>
+
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Transaksi Terbaru</h2>
+                <span class="hint">Buku kas terkini</span>
+              </div>
+              <div class="table-wrap">
+                <table id="recentTransactionsTable"></table>
+              </div>
+            </section>
+            <section class="panel form-panel">
+              <div class="panel-head">
+                <h2>Input Pengeluaran Bulanan</h2>
+                <span class="hint">Catat pengeluaran baru (Bahan baku, gaji, marketing, operasional)</span>
+              </div>
+              <form id="expenseForm" class="stack">
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Bulan</label>
+                  <input name="month" type="month" required>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kategori Pengeluaran</label>
+                  <select name="category" required>
+                    <option>Bahan Baku</option>
+                    <option>Gaji Karyawan</option>
+                    <option>Produksi</option>
+                    <option>Jasa Jahit</option>
+                    <option>Sablon / Bordir</option>
+                    <option>Marketing</option>
+                    <option>Operasional</option>
+                    <option>Lainnya</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nominal (Rp)</label>
+                  <input name="amount" type="number" min="0" placeholder="Nominal pengeluaran" required>
+                </div>
+                <div>
+                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Deskripsi / Catatan</label>
+                  <input name="note" placeholder="Deskripsi transaksi / Catatan" required>
+                </div>
+                <button type="submit">✓ Simpan</button>
+              </form>
+            </section>
+          </div>
+          
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Ringkasan Laba Rugi Bulanan</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="profitTable"></table>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Daftar Pengeluaran</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="expenseTable"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- LAPORAN VIEW -->
+        <section id="laporan" class="view">
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Laporan Margin per SKU</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="reportSkuTable"></table>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Laporan Penjualan per Channel</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="reportChannelTable"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- PENGATURAN VIEW PLACEHOLDER -->
+        <section id="pengaturan" class="view">
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Pengaturan Sistem</h2>
+              </div>
+              <div class="stack" style="padding: 24px;">
+                <p style="margin-bottom: 12px; font-weight: 700; font-size: 14px;">Detail Server ERP Lokal</p>
+                <div style="display: grid; gap: 14px; font-size: 13px;">
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 10px;">
+                    <span style="color: var(--muted); font-weight: 600;">Database Path</span>
+                    <code style="font-weight: 700; font-family: monospace;">data/erp.sqlite</code>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 10px;">
+                    <span style="color: var(--muted); font-weight: 600;">SQLite Engine</span>
+                    <code style="font-weight: 700; font-family: monospace;">node:sqlite (DatabaseSync)</code>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 10px;">
+                    <span style="color: var(--muted); font-weight: 600;">Status Koneksi</span>
+                    <span style="color: #22c55e; font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
+                      <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; box-shadow: 0 0 8px #22c55e;"></span>
+                      Terhubung
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <section class="panel" style="border-color: rgba(239, 68, 68, 0.25);">
+              <div class="panel-head" style="border-bottom-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.02);">
+                <h2 style="color: #ef4444; display: flex; align-items: center; gap: 8px;">
+                  <span>⚠️</span> Zona Bahaya
+                </h2>
+              </div>
+              <div class="stack" style="padding: 24px; gap: 16px;">
+                <p style="font-size: 13px; color: var(--muted); line-height: 1.6;">
+                  Melakukan reset akan menghapus seluruh data produk, varian, inventori, riwayat transaksi, pembelian (PO), batch produksi, dan Bill of Materials (BOM) dari sistem. Akun user kustom juga akan dihapus. Akun default Owner dan Admin akan dikembalikan.
+                </p>
+                <button type="button" id="systemResetBtn" class="danger" style="width: fit-content; padding: 10px 20px; font-weight: 800; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+                  Reset Database ke Awal
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ADD PO DIALOG -->
+    <dialog id="poDialog">
+      <form id="newPoForm" class="dialog-card">
+        <div class="panel-head">
+          <h2>Buat Purchase Order Baru</h2>
+          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#poDialog').close()">×</button>
+        </div>
+        <div class="stack">
+          <div class="split">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">No. PO</label>
+              <input name="poNo" placeholder="No. PO (e.g. PO-2826-889)" required>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Supplier</label>
+              <select name="supplierId" id="poFormSupplier" required></select>
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Tujuan Inventory Pool</label>
+              <select name="poolId" id="poFormPool" required></select>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Status PO</label>
+              <select name="status" required>
+                <option>Draft</option>
+                <option>Dikirim</option>
+                <option>Diterima Sebagian</option>
+                <option>Selesai</option>
+              </select>
+            </div>
+          </div>
+          <div class="revenue-items" style="margin: 10px 0 0;">
+            <div class="panel-head slim">
+              <h2>Item PO</h2>
+              <button id="addPoItemBtn" class="mini" type="button">＋ Item</button>
+            </div>
+            <div id="poItemRows" class="item-rows">
+              <!-- Dynamic rows -->
+            </div>
+          </div>
+          <div class="dialog-actions" style="margin-top: 15px;">
+            <button type="submit">✓ Simpan PO</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ADD BATCH DIALOG -->
+    <dialog id="batchDialog">
+      <form id="newBatchForm" class="dialog-card">
+        <div class="panel-head">
+          <h2>Buat Batch Produksi Baru</h2>
+          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#batchDialog').close()">×</button>
+        </div>
+        <div class="stack">
+          <div class="split">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">No. Batch</label>
+              <input name="batchNo" placeholder="No. Batch (e.g. BCH-261)" required>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Tipe Batch</label>
+              <select name="batchType" required>
+                <option value="Final Production">Final Production</option>
+                <option value="Sampling">Sampling</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Due Date</label>
+            <input name="dueDate" type="date" placeholder="Due Date" required>
+          </div>
+          <div class="revenue-items" style="margin: 10px 0 0;">
+            <div class="panel-head slim">
+              <h2>Artikel & Target Produksi (Multi-Artikel)</h2>
+              <button id="addBatchItemBtn" class="mini" type="button">＋ Artikel</button>
+            </div>
+            <div id="batchItemRows" class="item-rows">
+              <!-- Dynamic rows will be inserted here -->
+            </div>
+          </div>
+          <div class="dialog-actions" style="margin-top: 15px;">
+            <button type="submit">✓ Simpan Batch</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- UPDATE PROGRESS DIALOG -->
+    <dialog id="progressDialog">
+      <form id="updateProgressForm" class="dialog-card">
+        <div class="panel-head">
+          <h2>Update Progress Produksi</h2>
+          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#progressDialog').close()">×</button>
+        </div>
+        <input name="batchId" type="hidden">
+        <div class="stack">
+          <h3 id="progressBatchTitle" style="margin: 0 0 10px;">Batch</h3>
+          <div>
+            <label style="font-size:12px; font-weight:700;">Cutting Progress (%)</label>
+            <input name="cuttingProgress" type="number" min="0" max="100" required>
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:700;">Sewing Progress (%)</label>
+            <input name="sewingProgress" type="number" min="0" max="100" required>
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:700;">Finishing Progress (%)</label>
+            <input name="finishingProgress" type="number" min="0" max="100" required>
+          </div>
+          <div class="dialog-actions" style="margin-top: 15px;">
+            <button type="submit">✓ Update Progress</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ADD BOM DIALOG -->
+    <dialog id="bomDialog">
+      <form id="newBomForm" class="dialog-card">
+        <div class="panel-head">
+          <h2>Tambah Bill of Materials (BOM) Baru</h2>
+          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#bomDialog').close()">×</button>
+        </div>
+        <div class="stack">
+          <div>
+            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Pilih Artikel Produk</label>
+            <select name="productId" id="bomFormProduct" required></select>
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Bahan Baku</label>
+            <input name="materialName" placeholder="Nama Bahan Baku (e.g. Cotton Combed 30s, Kancing, dll.)" required>
+          </div>
+          <div class="split">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kebutuhan per Pcs</label>
+              <input name="requiredQty" type="number" step="any" min="0.0001" placeholder="Kebutuhan (e.g. 0.35, 1)" required>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Satuan</label>
+              <input name="unit" placeholder="Satuan (e.g. kg, meter, pcs)" required>
+            </div>
+          </div>
+          <div class="dialog-actions" style="margin-top: 15px;">
+            <button type="submit">✓ Simpan BOM</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- DYNAMIC PRODUCT SLIDING DRAWER -->
+    <div id="drawerOverlay" class="drawer-overlay hidden"></div>
+    <aside id="productDetailDrawer" class="drawer hidden">
+      <div class="drawer-header">
+        <div>
+          <h2 id="drawerProductName">Nama Artikel</h2>
+          <p><span id="drawerProductSku">SKU-000</span> • <span id="drawerProductCategory">Category</span></p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="closeDrawerBtn">&times;</button>
+      </div>
+      <div class="drawer-content">
+        <div class="product-image-box">
+          <svg viewBox="0 0 24 24" width="64" height="64" fill="var(--muted)">
+            <path d="M4 4h16v3h-4v13H8V7H4V4zm4 5h8v2H8V9zm0 4h8v2H8v-2zm0 4h8v2H8v-2z"/>
+          </svg>
+        </div>
+        <div class="price-grid">
+          <div class="price-box">
+            <span class="price-label">HARGA MODAL</span>
+            <strong id="drawerCostPrice">Rp 0</strong>
+          </div>
+          <div class="price-box accent">
+            <span class="price-label">HARGA JUAL</span>
+            <strong id="drawerSellPrice">Rp 0</strong>
+          </div>
+        </div>
+        <div class="variant-stock-section">
+          <h3>Varian (size &times; warna)</h3>
+          <div class="table-wrap">
+            <table class="matrix-table" id="drawerStockMatrix">
+              <!-- Dynamically populated via JS -->
+            </table>
+          </div>
+        </div>
+        <div class="barcode-section">
+          <div class="barcode-box">
+            <div class="barcode-lines">|||||||||||||||||||||||||||||||</div>
+            <div class="barcode-info">
+              <span id="drawerBarcodeText">SKU-000-BC</span>
+              <small>Barcode siap cetak</small>
+            </div>
+          </div>
+          <button type="button" id="printBarcodeBtn" class="btn-primary">Cetak</button>
+        </div>
+        
+        <!-- Editable details inside the drawer -->
+        <div class="drawer-edit-section">
+          <h3>Edit Detail Produk</h3>
+          <form id="drawerEditProductForm" class="stack">
+            <input name="variantId" type="hidden">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Artikel</label>
+              <input name="name" placeholder="Nama Artikel" required>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">SKU</label>
+              <input name="sku" placeholder="SKU" required>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kategori</label>
+              <select name="category">
+                <option>Bahan Baku</option>
+                <option>Aksesoris</option>
+                <option>T-Shirt</option>
+                <option>Hoodie</option>
+                <option>Shirt</option>
+                <option>Pants</option>
+                <option>Jacket</option>
+                <option>Cap</option>
+                <option>Tote Bag</option>
+                <option>Outerwear</option>
+              </select>
+            </div>
+            <div class="split">
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Size</label>
+                <input name="size" placeholder="Size" required>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Warna</label>
+                <input name="color" placeholder="Warna" required>
+              </div>
+            </div>
+            <div class="split">
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Harga Modal (HPP)</label>
+                <input name="costPrice" type="number" placeholder="HPP" required>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Harga Jual</label>
+                <input name="sellPrice" type="number" placeholder="Harga Jual" required>
+              </div>
+            </div>
+            <div class="split">
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Batas Low Stock</label>
+                <input name="lowStock" type="number" placeholder="Low Stock" required>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Status</label>
+                <select name="status">
+                  <option>Aktif</option>
+                  <option>Draft</option>
+                  <option>Archived</option>
+                </select>
+              </div>
+            </div>
+            <div class="split">
+              <button type="submit">✓ Simpan</button>
+              <button type="button" id="drawerDeleteProductBtn" class="danger soft">🗑 Hapus</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </aside>
+
+    <dialog id="productDialog">
+      <form id="editProductForm" class="dialog-card">
+        <div class="panel-head">
+          <h2>Edit Artikel</h2>
+          <button type="button" class="icon-btn close-dialog" title="Tutup">×</button>
+        </div>
+        <input name="variantId" type="hidden">
+        <div class="form-grid dialog-grid">
+          <input name="name" placeholder="Nama artikel" required>
+          <input name="sku" placeholder="SKU" required>
+          <select name="category">
+            <option>Bahan Baku</option>
+            <option>Aksesoris</option>
+            <option>T-Shirt</option>
+            <option>Hoodie</option>
+            <option>Shirt</option>
+            <option>Pants</option>
+            <option>Outerwear</option>
+          </select>
+          <input name="size" placeholder="Size">
+          <input name="color" placeholder="Warna">
+          <input name="costPrice" type="number" min="0" placeholder="HPP">
+          <input name="sellPrice" type="number" min="0" placeholder="Harga jual">
+          <input name="lowStock" type="number" min="1" placeholder="Low stock">
+          <select name="status">
+            <option>Aktif</option>
+            <option>Draft</option>
+            <option>Archived</option>
+          </select>
+        </div>
+        <div class="dialog-actions">
+          <button type="submit">✓ Simpan</button>
+          <button id="deleteProductBtn" type="button" class="danger soft">🗑 Hapus</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast"></div>
+    
+    <!-- Initialize Firebase -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyB9ghenYmSNp7Q5OeiHtjRFHDHmzOKK0bQ",
+        authDomain: "erp-tera.firebaseapp.com",
+        projectId: "erp-tera",
+        storageBucket: "erp-tera.firebasestorage.app",
+        messagingSenderId: "126947624665",
+        appId: "1:126947624665:web:08030b071b831ea2a0a0c8",
+        measurementId: "G-J5JLCN0FHC"
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+
+      console.log("Firebase berhasil diinisialisasi!");
+    </script>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

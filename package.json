@@ -1,0 +1,19 @@
+{
+  "name": "clothing-erp-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^12.15.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
