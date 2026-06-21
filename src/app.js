@@ -332,15 +332,18 @@ function showLogin() {
 }
 
 async function loadDashboard() {
-  const data = await api("/api/dashboard");
+  const [data, profits] = await Promise.all([
+    api("/api/dashboard"),
+    api("/api/profit-summary")
+  ]);
   const totalMonthlyRevenue = data.monthlyRevenue.at(-1)?.total || 0;
-  const totalProfit = data.revenue.reduce((sum, row) => sum + ((row.net_revenue || 0) - (row.cogs || 0)), 0);
+  const latestProfit = profits[0]?.profit || 0;
   const stockQty = data.inventory.reduce((sum, row) => sum + (row.qty || 0), 0);
   const stockValue = data.inventory.reduce((sum, row) => sum + (row.value || 0), 0);
 
   document.querySelector("#metrics").innerHTML = [
     ["Revenue Bulan Ini", rupiah.format(totalMonthlyRevenue)],
-    ["Gross Profit dari Order", rupiah.format(totalProfit)],
+    ["Laba Bersih", rupiah.format(latestProfit)],
     ["Total Stock", `${number.format(stockQty)} pcs`],
     ["Nilai Inventory", rupiah.format(stockValue)]
   ].map(([label, value]) => `<article class="metric"><span>${label}</span><strong>${value}</strong></article>`).join("");

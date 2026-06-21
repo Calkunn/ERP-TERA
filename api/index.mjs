@@ -590,7 +590,9 @@ async function dashboard() {
     SELECT ip.name AS pool, SUM(ib.qty * v.cost_price) AS value, SUM(ib.qty) AS qty
     FROM inventory_balances ib
     JOIN variants v ON v.id = ib.variant_id
+    JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
+    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris')
     GROUP BY ip.id, ip.name
   `).all();
   const stockByArticle = await db.prepare(`
@@ -601,6 +603,7 @@ async function dashboard() {
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
+    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris')
     GROUP BY p.id, p.name
     ORDER BY total_qty DESC
   `).all();
