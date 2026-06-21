@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync } from "node:fs";
@@ -520,9 +520,37 @@ async function readJson(req) {
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
 }
 
+const JWT_SECRET = process.env.JWT_SECRET || "default_tera_secret_key_1234567890";
+
+function createToken(user) {
+  const payload = JSON.stringify({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role
+  });
+  const base64Payload = Buffer.from(payload).toString("base64url");
+  const signature = createHmac("sha256", JWT_SECRET).update(base64Payload).digest("base64url");
+  return `${base64Payload}.${signature}`;
+}
+
+function verifyToken(token) {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
+  const expectedSignature = createHmac("sha256", JWT_SECRET).update(payload).digest("base64url");
+  if (signature !== expectedSignature) return null;
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch (e) {
+    return null;
+  }
+}
+
 function requireUser(req) {
   const token = req.headers.authorization?.replace("Bearer ", "");
-  return token ? sessions.get(token) : null;
+  return verifyToken(token);
 }
 
 async function dashboard() {
@@ -769,8 +797,7 @@ async function api(req, res) {
     const user = await db.prepare("SELECT id, name, email, role FROM users WHERE email = ? AND password_hash = ?")
       .get(String(body.email || "").trim().toLowerCase(), hashPassword(body.password || ""));
     if (!user) return json(res, 401, { error: "Email atau password salah" });
-    const token = randomUUID();
-    sessions.set(token, user);
+    const token = createToken(user);
     return json(res, 200, { token, user });
   }
 
