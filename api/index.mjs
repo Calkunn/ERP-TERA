@@ -805,7 +805,7 @@ async function api(req, res) {
     return json(res, 400, { error: "Registrasi akun baru tidak diperbolehkan." });
   }
 
-  const publicPaths = ["/api/auth/login", "/api/auth/register"];
+  const publicPaths = ["/api/auth/login", "/api/auth/register", "/api/debug-inventory"];
   if (!publicPaths.includes(url.pathname)) {
     const user = requireUser(req);
     if (!user) return json(res, 401, { error: "Silakan login dulu" });
