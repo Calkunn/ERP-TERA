@@ -102,7 +102,13 @@ function clearCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   const cssWidth = Math.max(280, rect.width || canvas.parentElement?.clientWidth || 420);
-  const cssHeight = Number(canvas.getAttribute("height")) || 260;
+  
+  // Scale down chart heights on mobile to keep them compact and prevent long scrolls
+  let cssHeight = Number(canvas.getAttribute("height")) || 260;
+  if (window.innerWidth <= 820) {
+    cssHeight = Math.min(cssHeight, 180);
+  }
+
   canvas.style.height = `${cssHeight}px`;
   canvas.width = Math.max(1, Math.floor(cssWidth * dpr));
   canvas.height = Math.max(1, Math.floor(cssHeight * dpr));
@@ -122,10 +128,10 @@ function drawLineChart(canvasId, rows, config) {
   if (!canvas) return;
   const { ctx, width, height } = clearCanvas(canvas);
   const colors = chartColors();
-  const pad = 42;
+  const pad = width > 400 ? 42 : 32;
   if (!rows.length) {
     ctx.fillStyle = colors.muted;
-    ctx.font = "13px 'Plus Jakarta Sans', system-ui";
+    ctx.font = width > 400 ? "13px 'Plus Jakarta Sans', system-ui" : "11px 'Plus Jakarta Sans', system-ui";
     ctx.fillText("Belum ada data", pad, height / 2);
     return;
   }
@@ -138,7 +144,7 @@ function drawLineChart(canvasId, rows, config) {
   ctx.lineWidth = 0.8;
   ctx.setLineDash([4, 4]);
   ctx.fillStyle = colors.muted;
-  ctx.font = "10px 'Plus Jakarta Sans', system-ui";
+  ctx.font = width > 400 ? "10px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
   for (let i = 0; i <= 4; i++) {
     const y = pad + ((height - pad * 2) / 4) * i;
     ctx.beginPath();
@@ -218,22 +224,23 @@ function drawLineChart(canvasId, rows, config) {
     const x = pad + index * groupWidth + groupWidth / 2;
     ctx.fillStyle = colors.muted;
     ctx.textAlign = "center";
-    ctx.font = "10px 'Plus Jakarta Sans', system-ui";
+    ctx.font = width > 400 ? "10px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
     ctx.fillText(config.label(row), x, height - 11);
   });
 
   // Draw Legend Elements
   config.series.forEach((series, index) => {
-    const lx = pad + index * 110;
-    const ly = 18;
-    
+    const spacing = width > 400 ? 110 : (width - pad * 2) / Math.max(1, config.series.length);
+    const lx = pad + index * spacing;
+    const ly = width > 400 ? 18 : 12;
+
     ctx.fillStyle = series.color;
     ctx.beginPath();
     ctx.arc(lx + 5, ly, 4.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = colors.text;
-    ctx.font = "11px 'Plus Jakarta Sans', system-ui";
+    ctx.font = width > 400 ? "11px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
     ctx.textAlign = "left";
     ctx.fillText(series.label, lx + 14, ly + 3);
   });
@@ -285,17 +292,23 @@ function drawPieChart(canvasId, rows) {
 
   // Draw Legend Lists
   rows.forEach((row, index) => {
-    const y = height - 42 + index * 18;
+    let x = 32;
+    let y = height - 42 + index * 18;
+    if (width <= 400) {
+      const spacing = (width - 64) / Math.max(1, rows.length);
+      x = 32 + index * spacing;
+      y = height - 16;
+    }
     
     ctx.fillStyle = sliceColors[index % sliceColors.length];
     ctx.beginPath();
-    ctx.arc(32, y - 4, 4.5, 0, Math.PI * 2);
+    ctx.arc(x, y - 4, 4.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = colors.text;
-    ctx.font = "11px 'Plus Jakarta Sans', system-ui";
+    ctx.font = width > 400 ? "11px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
     ctx.textAlign = "left";
-    ctx.fillText(`${row.pool}: ${number.format(row.qty || 0)} pcs`, 44, y);
+    ctx.fillText(`${row.pool}: ${number.format(row.qty || 0)} pcs`, x + 12, y);
   });
 }
 
