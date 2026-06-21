@@ -250,15 +250,15 @@ async function initDb() {
     }
   }
 
-  await seedInventoryPools()();
-  await seedUsers()();
+  await seedInventoryPools();
+  await seedUsers();
 
   const shouldSeedMock = process.env.SEED_MOCK_DATA === "true";
   if (shouldSeedMock) {
-    await seedBaseData()();
-    await seedMonthlyRevenue()();
-    await seedMonthlyExpenses()();
-    await personalizeExistingData()();
+    await seedBaseData();
+    await seedMonthlyRevenue();
+    await seedMonthlyExpenses();
+    await personalizeExistingData();
   }
 }
 
