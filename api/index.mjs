@@ -28,6 +28,13 @@ function hashPassword(password) {
 }
 
 async function initDb() {
+  // Run migration to add completed_at to production_batches if not exists
+  try {
+    await db.exec("ALTER TABLE production_batches ADD COLUMN completed_at TEXT");
+  } catch (e) {
+    // Ignore error if column already exists or table doesn't exist yet
+  }
+
   // Check if purchase_order_items needs migration from variant_id to material_name
   let dropPoItems = false;
   try {
@@ -193,6 +200,7 @@ async function initDb() {
       sewing_progress INTEGER DEFAULT 0,
       finishing_progress INTEGER DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'Sedang Diproses',
+      completed_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS production_batch_items (
@@ -932,6 +940,7 @@ async function api(req, res) {
     const sewing = Number(body.sewingProgress ?? 0);
     const finishing = Number(body.finishingProgress ?? 0);
     const status = (cutting === 100 && sewing === 100 && finishing === 100) ? "Selesai" : "Sedang Diproses";
+    const completedAt = body.completedAt ? body.completedAt.replace("T", " ") : "";
     await db.exec("BEGIN");
     try {
       const currentBatch = await db.prepare("SELECT batch_no, status FROM production_batches WHERE id = ?").get(id);
@@ -940,14 +949,16 @@ async function api(req, res) {
         return json(res, 404, { error: "Batch tidak ditemukan" });
       }
 
-      await db.prepare(`
-        UPDATE production_batches
-        SET cutting_progress = ?, sewing_progress = ?, finishing_progress = ?, status = ?
-        WHERE id = ?
-      `).run(cutting, sewing, finishing, status, id);
-
       const wasCompleted = currentBatch.status === "Selesai";
       const isCompletedNow = status === "Selesai";
+      const dateToUse = completedAt || new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().replace("T", " ").slice(0, 19);
+
+      await db.prepare(`
+        UPDATE production_batches
+        SET cutting_progress = ?, sewing_progress = ?, finishing_progress = ?, status = ?, completed_at = ?
+        WHERE id = ?
+      `).run(cutting, sewing, finishing, status, isCompletedNow ? dateToUse : null, id);
+
       if (!wasCompleted && isCompletedNow) {
         const items = await db.prepare("SELECT product_id, qty FROM production_batch_items WHERE batch_id = ?").all(id);
         for (const item of items) {
@@ -958,7 +969,7 @@ async function api(req, res) {
             for (let i = 0; i < variants.length; i++) {
               const addedQty = baseQty + (i === 0 ? remainder : 0);
               if (addedQty > 0) {
-                await changeStock(variants[i].id, 2, addedQty, "Production", `Selesai Produksi: ${currentBatch.batch_no}`);
+                await changeStock(variants[i].id, 2, addedQty, "Production", `Selesai Produksi: ${currentBatch.batch_no}`, dateToUse);
               }
             }
           }

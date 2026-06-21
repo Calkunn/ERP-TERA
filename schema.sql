@@ -170,6 +170,7 @@ CREATE TABLE production_batches (
   sewing_progress INTEGER DEFAULT 0,
   finishing_progress INTEGER DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'Sedang Diproses',
+  completed_at TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

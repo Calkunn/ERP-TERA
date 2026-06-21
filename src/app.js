@@ -553,7 +553,7 @@ async function loadProduksi() {
           </div>
         </div>
         <div class="production-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-          <span style="font-size:12px; color:var(--muted);">Due: ${new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+          <span style="font-size:12px; color:var(--muted);">${b.status === 'Selesai' && b.completed_at ? `Selesai: ${new Date(b.completed_at.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}` : `Due: ${new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`}</span>
           ${isOngoing ? `<button class="mini edit-progress-btn" data-id="${b.id}" data-no="${b.batch_no}" data-cutting="${b.cutting_progress}" data-sewing="${b.sewing_progress}" data-finishing="${b.finishing_progress}" type="button">Update Progress</button>` : ''}
         </div>
       </article>
@@ -1354,6 +1354,12 @@ const handleBatchClick = async (event) => {
     form.cuttingProgress.value = editBtn.dataset.cutting;
     form.sewingProgress.value = editBtn.dataset.sewing;
     form.finishingProgress.value = editBtn.dataset.finishing;
+    
+    // Set completedAt to current local time in YYYY-MM-DDTHH:MM format
+    const now = new Date();
+    const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    if (form.completedAt) form.completedAt.value = localIso;
+
     document.querySelector("#progressDialog").showModal();
   } else if (cancelBtn) {
     const id = cancelBtn.dataset.id;
@@ -1400,7 +1406,8 @@ document.querySelector("#updateProgressForm").addEventListener("submit", async (
       body: JSON.stringify({
         cuttingProgress: Number(data.cuttingProgress),
         sewingProgress: Number(data.sewingProgress),
-        finishingProgress: Number(data.finishingProgress)
+        finishingProgress: Number(data.finishingProgress),
+        completedAt: data.completedAt || ""
       })
     });
     document.querySelector("#progressDialog").close();
