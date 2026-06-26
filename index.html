@@ -477,80 +477,45 @@
 
         <!-- KEUANGAN VIEW -->
         <section id="keuangan" class="view">
-          <div class="tab-header" style="margin-bottom:16px;">
-            <button class="tab-btn active" data-tab="financeSummaryTab">Ringkasan Keuangan</button>
-            <button class="tab-btn" data-tab="incomeStatementTab">Income Statement</button>
-            <button class="tab-btn" data-tab="cashBudgetTab">Cash Budget</button>
-          </div>
-
-          <!-- Tab 1: Ringkasan Keuangan -->
-          <div id="financeSummaryTab" class="tab-content active">
-            <div class="metrics-summary select-none">
-              <div class="metric-summary-card green">
-                <span>TOTAL PEMASUKAN</span>
-                <strong id="financeTotalIncome">Rp 0</strong>
-              </div>
-              <div class="metric-summary-card red">
-                <span>TOTAL PENGELUARAN</span>
-                <strong id="financeTotalExpense">Rp 0</strong>
-              </div>
-              <div class="metric-summary-card" id="financeNetProfitCard">
-                <span>LABA BERSIH</span>
-                <strong id="financeNetProfit">Rp 0</strong>
-              </div>
+          <div class="metrics-summary select-none">
+            <div class="metric-summary-card green">
+              <span>TOTAL PEMASUKAN</span>
+              <strong id="financeTotalIncome">Rp 0</strong>
             </div>
-
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Arus Kas 12 Bulan</h2>
-                <span class="hint">Pemasukan vs pengeluaran per bulan</span>
-              </div>
-              <canvas id="profitChart" height="280"></canvas>
-            </section>
-
-            <div class="grid two">
-              <section class="panel">
-                <div class="panel-head">
-                  <h2>Transaksi Terbaru</h2>
-                  <span class="hint">Buku kas terkini</span>
-                </div>
-                <div class="table-wrap">
-                  <table id="recentTransactionsTable"></table>
-                </div>
-              </section>
-              <section class="panel">
-                <div class="panel-head">
-                  <h2>Ringkasan Laba Rugi Bulanan</h2>
-                </div>
-                <div class="table-wrap">
-                  <table id="profitTable"></table>
-                </div>
-              </section>
+            <div class="metric-summary-card red">
+              <span>TOTAL PENGELUARAN</span>
+              <strong id="financeTotalExpense">Rp 0</strong>
+            </div>
+            <div class="metric-summary-card" id="financeNetProfitCard">
+              <span>LABA BERSIH</span>
+              <strong id="financeNetProfit">Rp 0</strong>
             </div>
           </div>
 
-          <!-- Tab 2: Income Statement -->
-          <div id="incomeStatementTab" class="tab-content">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Arus Kas 12 Bulan</h2>
+              <span class="hint">Pemasukan vs pengeluaran per bulan</span>
+            </div>
+            <canvas id="profitChart" height="280"></canvas>
+          </section>
+
+          <div class="grid two">
             <section class="panel">
               <div class="panel-head">
-                <h2>Laporan Laba Rugi (Income Statement)</h2>
-                <span class="hint">Perhitungan profit periodik model TERA</span>
+                <h2>Transaksi Terbaru</h2>
+                <span class="hint">Buku kas terkini</span>
               </div>
-              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
-                <table class="sheet-table" id="incomeStatementSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
+              <div class="table-wrap">
+                <table id="recentTransactionsTable"></table>
               </div>
             </section>
-          </div>
-
-          <!-- Tab 3: Cash Budget -->
-          <div id="cashBudgetTab" class="tab-content">
             <section class="panel">
               <div class="panel-head">
-                <h2>Laporan Anggaran Kas (Cash Budget)</h2>
-                <span class="hint">Aliran kas masuk dan keluar model TERA</span>
+                <h2>Ringkasan Laba Rugi Bulanan</h2>
               </div>
-              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
-                <table class="sheet-table" id="cashBudgetSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
+              <div class="table-wrap">
+                <table id="profitTable"></table>
               </div>
             </section>
           </div>
@@ -606,21 +571,56 @@
 
         <!-- LAPORAN VIEW -->
         <section id="laporan" class="view">
-          <div class="grid two">
+          <div class="tab-header" style="margin-bottom:16px;">
+            <button class="tab-btn active" data-tab="reportSummaryTab">Ringkasan Laporan</button>
+            <button class="tab-btn" data-tab="incomeStatementTab">Income Statement</button>
+            <button class="tab-btn" data-tab="cashBudgetTab">Cash Budget</button>
+          </div>
+
+          <!-- Tab 1: Ringkasan Laporan -->
+          <div id="reportSummaryTab" class="tab-content active">
+            <div class="grid two">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Laporan Margin per SKU</h2>
+                </div>
+                <div class="table-wrap">
+                  <table id="reportSkuTable"></table>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Laporan Penjualan per Channel</h2>
+                </div>
+                <div class="table-wrap">
+                  <table id="reportChannelTable"></table>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- Tab 2: Income Statement -->
+          <div id="incomeStatementTab" class="tab-content">
             <section class="panel">
               <div class="panel-head">
-                <h2>Laporan Margin per SKU</h2>
+                <h2>Laporan Laba Rugi (Income Statement)</h2>
+                <span class="hint">Perhitungan profit periodik model TERA</span>
               </div>
-              <div class="table-wrap">
-                <table id="reportSkuTable"></table>
+              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
+                <table class="sheet-table" id="incomeStatementSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
               </div>
             </section>
+          </div>
+
+          <!-- Tab 3: Cash Budget -->
+          <div id="cashBudgetTab" class="tab-content">
             <section class="panel">
               <div class="panel-head">
-                <h2>Laporan Penjualan per Channel</h2>
+                <h2>Laporan Anggaran Kas (Cash Budget)</h2>
+                <span class="hint">Aliran kas masuk dan keluar model TERA</span>
               </div>
-              <div class="table-wrap">
-                <table id="reportChannelTable"></table>
+              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
+                <table class="sheet-table" id="cashBudgetSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
               </div>
             </section>
           </div>

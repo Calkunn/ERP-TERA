@@ -9,8 +9,8 @@ const titles = {
   produksi: ["Produksi", "Kelola batch produksi (cutting, sewing, finishing)."],
   penjualan: ["Penjualan", "Input pendapatan online/offline bulanan dan detail artikel terjual."],
   pengeluaran: ["Pengeluaran", "Kelola biaya operasional, gaji, jahit, sablon, dan lainnya."],
-  keuangan: ["Keuangan", "Laporan Income Statement dan Cash Budget model TERA."],
-  laporan: ["Laporan", "Ringkasan revenue, COGS, gross profit, dan margin SKU."],
+  keuangan: ["Keuangan", "Buku kas, grafik arus kas bulanan, dan ringkasan keuangan TERA."],
+  laporan: ["Laporan", "Income Statement, Cash Budget, dan Ringkasan Laba Rugi SKU/Channel model TERA."],
   pengaturan: ["Pengaturan", "Informasi sistem dan konfigurasi server ERP."]
 };
 
@@ -817,9 +817,11 @@ document.querySelectorAll(".nav").forEach((button) => {
       else if (viewId === "pengeluaran") loadExpenses().catch(e => console.error(e));
       else if (viewId === "keuangan") {
         loadKeuangan().catch(e => console.error(e));
+      }
+      else if (viewId === "laporan") {
+        loadReports().catch(e => console.error(e));
         loadKeuanganReports().catch(e => console.error(e));
       }
-      else if (viewId === "laporan") loadReports().catch(e => console.error(e));
     }, 100);
   });
 });
