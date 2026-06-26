@@ -11,6 +11,7 @@ const titles = {
   pengeluaran: ["Pengeluaran", "Kelola biaya operasional, gaji, jahit, sablon, dan lainnya."],
   keuangan: ["Keuangan", "Buku kas, grafik arus kas bulanan, dan ringkasan keuangan TERA."],
   laporan: ["Laporan", "Income Statement, Cash Budget, dan Ringkasan Laba Rugi SKU/Channel model TERA."],
+  "ai-consultant": ["Konsultan AI", "Virtual COO terintegrasi untuk pendampingan operasional, keuangan, & branding TERA."],
   pengaturan: ["Pengaturan", "Informasi sistem dan konfigurasi server ERP."]
 };
 
@@ -821,6 +822,9 @@ document.querySelectorAll(".nav").forEach((button) => {
       else if (viewId === "laporan") {
         loadReports().catch(e => console.error(e));
         loadKeuanganReports().catch(e => console.error(e));
+      }
+      else if (viewId === "ai-consultant") {
+        loadAiConsultant().catch(e => console.error(e));
       }
     }, 100);
   });
@@ -2072,3 +2076,227 @@ async function loadCategoryStocks() {
     console.error("Failed to load category stocks:", error);
   }
 }
+
+let aiChatHistory = [];
+
+async function loadAiConsultant() {
+  // Clear chat window except for the initial message
+  const chatMessagesEl = document.querySelector("#aiChatMessages");
+  if (chatMessagesEl) {
+    chatMessagesEl.innerHTML = `
+      <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+        Halo! Saya adalah Virtual COO dan Konsultan Bisnis Utama Anda. 
+        Saya menguasai data stok pakaian, inventori kemasan, dan laporan keuangan toko Anda.
+        Tanyakan apa saja, seperti:
+        <ul style="margin: 8px 0 0 16px; padding: 0; list-style-type: disc;">
+          <li>Bagaimana analisis laba rugi saya bulan ini?</li>
+          <li>Produk apa yang margin keuntungannya paling tinggi untuk di-branding?</li>
+          <li>Apakah ada stok kemasan atau hangtag yang perlu saya order sekarang?</li>
+        </ul>
+      </div>
+    `;
+    aiChatHistory = [];
+  }
+
+  // Load proactive insights automatically
+  await loadAiInsights();
+}
+
+async function loadAiInsights() {
+  const container = document.querySelector("#aiInsightsContainer");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="text-align: center; padding: 24px; color: var(--muted); font-size: 13px;">
+      <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
+      Sedang menganalisis kondisi bisnis...
+    </div>
+  `;
+
+  try {
+    const data = await api("/api/ai/insights");
+    if (data.insights) {
+      // Parse markdown bold text and bullets to simple HTML
+      let html = "";
+      const lines = data.insights.split("\n");
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+          let text = trimmed.substring(2);
+          
+          // Simple markdown bold replacement: **text** -> <strong>text</strong>
+          text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+          // Determine card style based on category
+          let borderLeftColor = "var(--primary)";
+          let icon = "💡";
+          if (text.includes("[Stok]")) {
+            borderLeftColor = "#f59e0b"; // amber
+            icon = "📦";
+          } else if (text.includes("[Keuangan]")) {
+            borderLeftColor = "#10b981"; // emerald
+            icon = "💰";
+          } else if (text.includes("[Pemasaran & Branding]") || text.includes("[Pemasaran]") || text.includes("[Branding]")) {
+            borderLeftColor = "#6366f1"; // indigo
+            icon = "📢";
+          }
+
+          html += `
+            <div style="background: var(--bg); border-left: 4px solid ${borderLeftColor}; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.5; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--line); border-left-width: 4px; display: flex; gap: 10px; align-items: flex-start;">
+              <span style="font-size: 16px; margin-top: 1px;">${icon}</span>
+              <div>${text}</div>
+            </div>
+          `;
+        }
+      });
+      container.innerHTML = html || `<div style="text-align:center; padding:16px; color:var(--muted);">Tidak ada rekomendasi baru saat ini.</div>`;
+    } else {
+      throw new Error("Format wawasan tidak valid");
+    }
+  } catch (error) {
+    if (error.message && error.message.includes("GEMINI_API_KEY_MISSING")) {
+      container.innerHTML = `
+        <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 16px; border-radius: 8px; color: #991b1b; font-size: 13px; line-height: 1.5;">
+          <h4 style="margin: 0 0 6px 0; font-weight: 700;">API Key Belum Dipasang</h4>
+          Fitur AI Consultant memerlukan API Key Gemini gratis dari Google AI Studio. 
+          Silakan tambahkan variabel lingkungan <strong>GEMINI_API_KEY</strong> pada platform hosting Anda (Vercel).
+          <br/><br/>
+          <a href="https://aistudio.google.com/" target="_blank" style="color: #b91c1c; font-weight: 600; text-decoration: underline;">Dapatkan API Key Gratis Di Sini ↗</a>
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 16px; color: #ef4444; font-size: 13px;">
+          ❌ Gagal memuat analisis: ${error.message}
+        </div>
+      `;
+    }
+  }
+}
+
+async function sendAiChatMessage() {
+  const inputEl = document.querySelector("#aiChatInput");
+  const chatMessagesEl = document.querySelector("#aiChatMessages");
+  const sendBtn = document.querySelector("#sendAiChatBtn");
+
+  if (!inputEl || !chatMessagesEl || !inputEl.value.trim()) return;
+
+  const userText = inputEl.value.trim();
+  inputEl.value = "";
+
+  // Append user message to UI
+  const userMsgHtml = `
+    <div class="user-message" style="background: var(--primary); color: white; padding: 10px 14px; border-radius: 8px 8px 0 8px; max-width: 85%; align-self: flex-end; font-size: 13px; line-height: 1.5;">
+      ${escapeHtml(userText)}
+    </div>
+  `;
+  chatMessagesEl.insertAdjacentHTML("beforeend", userMsgHtml);
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+  // Disable input & button during processing
+  inputEl.disabled = true;
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.textContent = "...";
+  }
+
+  // Add typing indicator
+  const typingId = "typing-" + Date.now();
+  const typingHtml = `
+    <div id="${typingId}" class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary); display: flex; align-items: center; gap: 4px;">
+      <span class="dot" style="width:6px; height:6px; background:var(--muted); border-radius:50%; animation: pulse 1s infinite alternate;"></span>
+      <span class="dot" style="width:6px; height:6px; background:var(--muted); border-radius:50%; animation: pulse 1s infinite alternate; animation-delay: 0.2s;"></span>
+      <span class="dot" style="width:6px; height:6px; background:var(--muted); border-radius:50%; animation: pulse 1s infinite alternate; animation-delay: 0.4s;"></span>
+    </div>
+  `;
+  chatMessagesEl.insertAdjacentHTML("beforeend", typingHtml);
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+  try {
+    const data = await api("/api/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message: userText,
+        history: aiChatHistory
+      })
+    });
+
+    // Remove typing indicator
+    const typingIndicator = document.getElementById(typingId);
+    if (typingIndicator) typingIndicator.remove();
+
+    if (data.response) {
+      // Simple markdown parser to HTML for bullet points and bold text
+      let parsedResponse = data.response
+        .replace(/\n/g, "<br/>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+      const aiMsgHtml = `
+        <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+          ${parsedResponse}
+        </div>
+      `;
+      chatMessagesEl.insertAdjacentHTML("beforeend", aiMsgHtml);
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+      // Update history
+      aiChatHistory.push({ role: "user", text: userText });
+      aiChatHistory.push({ role: "model", text: data.response });
+
+      // Cap history size to prevent huge payload over time
+      if (aiChatHistory.length > 20) {
+        aiChatHistory = aiChatHistory.slice(-20);
+      }
+    } else {
+      throw new Error("Respons AI kosong");
+    }
+  } catch (error) {
+    const typingIndicator = document.getElementById(typingId);
+    if (typingIndicator) typingIndicator.remove();
+
+    let errMsg = `Gagal mendapatkan respon AI: ${error.message}`;
+    if (error.message && error.message.includes("GEMINI_API_KEY_MISSING")) {
+      errMsg = `API Key Gemini belum terpasang di Vercel. Silakan pasang <strong>GEMINI_API_KEY</strong> agar AI bisa merespons.`;
+    }
+
+    const errorMsgHtml = `
+      <div class="ai-message error" style="background: #fef2f2; border: 1px solid #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start;">
+        ${errMsg}
+      </div>
+    `;
+    chatMessagesEl.insertAdjacentHTML("beforeend", errorMsgHtml);
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  } finally {
+    inputEl.disabled = false;
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Kirim";
+    }
+    inputEl.focus();
+  }
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// AI Consultant Event Listeners
+document.querySelector("#refreshInsightsBtn")?.addEventListener("click", () => {
+  loadAiInsights().catch(e => console.error(e));
+});
+
+document.querySelector("#sendAiChatBtn")?.addEventListener("click", () => {
+  sendAiChatMessage().catch(e => console.error(e));
+});
+
+document.querySelector("#aiChatInput")?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    sendAiChatMessage().catch(e => console.error(e));
+  }
+});

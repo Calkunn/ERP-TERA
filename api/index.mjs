@@ -879,6 +879,192 @@ async function reports() {
   return { channel, sku };
 }
 
+async function calculateKeuanganReports() {
+  const revenues = await db.prepare(`
+    SELECT mr.id, mr.month, mr.online_revenue, mr.offline_revenue, mr.online_order_count
+    FROM monthly_revenues mr
+    ORDER BY mr.month ASC
+  `).all();
+
+  const expenses = await db.prepare(`
+    SELECT id, month, category, amount, note
+    FROM monthly_expenses
+  `).all();
+
+  const cogsList = await db.prepare(`
+    SELECT mr.month, SUM((mri.online_qty + mri.offline_qty) * v.cost_price) AS cogs
+    FROM monthly_revenue_items mri
+    JOIN variants v ON v.id = mri.variant_id
+    JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
+    GROUP BY mr.month
+  `).all();
+
+  const qtySoldList = await db.prepare(`
+    SELECT mr.month, SUM(mri.online_qty + mri.offline_qty) AS qty_sold
+    FROM monthly_revenue_items mri
+    JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
+    GROUP BY mr.month
+  `).all();
+
+  const cogsMap = new Map(cogsList.map(c => [c.month, c.cogs]));
+  const qtyMap = new Map(qtySoldList.map(q => [q.month, q.qty_sold]));
+
+  const expensesByMonth = {};
+  for (const e of expenses) {
+    if (!expensesByMonth[e.month]) {
+      expensesByMonth[e.month] = [];
+    }
+    expensesByMonth[e.month].push(e);
+  }
+
+  const monthlyReports = [];
+  const allMonths = Array.from(new Set([
+    ...revenues.map(r => r.month),
+    ...expenses.map(e => e.month)
+  ])).sort();
+
+  for (const m of allMonths) {
+    const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
+    const grossSales = rev.online_revenue + rev.offline_revenue;
+    const monthExps = expensesByMonth[m] || [];
+    const totalExpenses = monthExps.reduce((sum, e) => sum + e.amount, 0);
+
+    if (grossSales === 0 && totalExpenses === 0) {
+      continue;
+    }
+
+    const komisi = Math.round(grossSales * 0.36);
+    const totalRevenue = grossSales - komisi;
+    const cogs = cogsMap.get(m) || 0;
+    const operatingIncome = totalRevenue - cogs;
+    
+    // Gaji Karyawan = 98000 + 6% of Operating Income
+    const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
+
+    const bahanKain = monthExps
+      .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'].includes(e.category))
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const otherCost = monthExps
+      .filter(e => !['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Gaji Karyawan'].includes(e.category))
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const netIncome = operatingIncome - otherCost - bayarDavid;
+
+    const qtySold = qtyMap.get(m) || 0;
+    const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
+
+    const cashReceived = bahanKain > 0 ? totalRevenue : operatingIncome;
+    const cashReceivedLabel = bahanKain > 0 ? 'Sales' : 'Operating income';
+
+    let beginningCash = 0;
+    if (m === '2026-03') {
+      beginningCash = 3822450;
+    } else if (monthlyReports.length > 0) {
+      beginningCash = monthlyReports[monthlyReports.length - 1].endingCash;
+    } else {
+      beginningCash = 0;
+    }
+
+    const totalCashAvailable = beginningCash + cashReceived;
+    
+    const biayaGaji = bayarDavid;
+    const otherExpenses = otherCost; 
+    const totalCashDisbursement = bahanKain + biayaGaji + otherExpenses;
+    const endingCash = totalCashAvailable - totalCashDisbursement;
+
+    monthlyReports.push({
+      month: m,
+      grossSales,
+      qtySold,
+      avgPrice,
+      komisi,
+      totalRevenue,
+      cogs,
+      operatingIncome,
+      bayarDavid,
+      otherCost,
+      netIncome,
+      beginningCash,
+      cashReceived,
+      cashReceivedLabel,
+      totalCashAvailable,
+      bahanKain,
+      biayaGaji,
+      otherExpenses,
+      totalCashDisbursement,
+      endingCash
+    });
+  }
+  return monthlyReports;
+}
+
+async function getAiContext() {
+  const stockList = await db.prepare(`
+    SELECT p.name, p.category, v.sku, v.size, v.color, SUM(ib.qty) AS qty, v.low_stock
+    FROM inventory_balances ib
+    JOIN variants v ON v.id = ib.variant_id
+    JOIN products p ON p.id = v.product_id
+    GROUP BY v.id
+  `).all();
+
+  const auxiliaryList = await db.prepare(`
+    SELECT name, qty FROM auxiliary_balances
+  `).all();
+
+  const reports = await calculateKeuanganReports();
+
+  return {
+    stocks: stockList,
+    auxiliary: auxiliaryList,
+    financials: reports
+  };
+}
+
+async function callGemini(systemInstruction, userMessage, history = []) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY_MISSING");
+  }
+
+  const contents = [];
+  for (const h of history) {
+    contents.push({
+      role: h.role === "user" ? "user" : "model",
+      parts: [{ text: h.text }]
+    });
+  }
+  contents.push({
+    role: "user",
+    parts: [{ text: userMessage }]
+  });
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents,
+      systemInstruction: {
+        parts: [{ text: systemInstruction }]
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API Error: ${response.status} - ${errText}`);
+  }
+
+  const resJson = await response.json();
+  const text = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Gemini returned empty response.");
+  }
+  return text;
+}
+
 async function api(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
@@ -1626,126 +1812,78 @@ async function api(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/keuangan/reports") {
     try {
-      const revenues = await db.prepare(`
-        SELECT mr.id, mr.month, mr.online_revenue, mr.offline_revenue, mr.online_order_count
-        FROM monthly_revenues mr
-        ORDER BY mr.month ASC
-      `).all();
+      const reports = await calculateKeuanganReports();
+      return json(res, 200, reports);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
 
-      const expenses = await db.prepare(`
-        SELECT id, month, category, amount, note
-        FROM monthly_expenses
-      `).all();
+  if (req.method === "GET" && url.pathname === "/api/ai/insights") {
+    if (!process.env.GEMINI_API_KEY) {
+      return json(res, 400, {
+        error: "GEMINI_API_KEY_MISSING",
+        message: "API Key Gemini belum terkonfigurasi. Silakan tambahkan variabel lingkungan GEMINI_API_KEY di dashboard hosting Anda."
+      });
+    }
+    try {
+      const context = await getAiContext();
+      const systemInstruction = `
+You are the Chief Business Consultant and Virtual COO for TERA, a premium clothing brand. You speak Indonesian.
+Analyze the provided real-time business data:
+1. stocks: List of clothing products and their variant quantities.
+2. auxiliary: Quantities of Packaging Baju, Packaging Order, and Hangtag.
+3. financials: Monthly Income Statement and Cash Budget reports.
 
-      const cogsList = await db.prepare(`
-        SELECT mr.month, SUM((mri.online_qty + mri.offline_qty) * v.cost_price) AS cogs
-        FROM monthly_revenue_items mri
-        JOIN variants v ON v.id = mri.variant_id
-        JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
-        GROUP BY mr.month
-      `).all();
+Generate exactly 3 bullet points of proactive, practical insights (rekomendasi pintar). Use Markdown format.
+The output format must be EXACTLY like this:
+* **[Stok]**: <A brief operation/stock warning. Mention specific items below their low_stock or packaging materials below 30. Keep it short.>
+* **[Keuangan]**: <A brief profit/cost/cash analysis based on the latest months. E.g., warnings about 36% commission or high payroll compared to Net Income.>
+* **[Pemasaran & Branding]**: <A brief marketing/branding action. Suggest marketing the highest-margin items or event/promotion strategies to optimize sales.>
 
-      const qtySoldList = await db.prepare(`
-        SELECT mr.month, SUM(mri.online_qty + mri.offline_qty) AS qty_sold
-        FROM monthly_revenue_items mri
-        JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
-        GROUP BY mr.month
-      `).all();
+Do not write any intro or outro, just return the 3 bullet points. Be specific about TERA's products and numbers.
+`;
+      const userMessage = `Here is the current business state:
+Stocks: ${JSON.stringify(context.stocks)}
+Auxiliary: ${JSON.stringify(context.auxiliary)}
+Financial Reports: ${JSON.stringify(context.financials)}`;
 
-      const cogsMap = new Map(cogsList.map(c => [c.month, c.cogs]));
-      const qtyMap = new Map(qtySoldList.map(q => [q.month, q.qty_sold]));
+      const text = await callGemini(systemInstruction, userMessage);
+      return json(res, 200, { insights: text });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
 
-      const expensesByMonth = {};
-      for (const e of expenses) {
-        if (!expensesByMonth[e.month]) {
-          expensesByMonth[e.month] = [];
-        }
-        expensesByMonth[e.month].push(e);
+  if (req.method === "POST" && url.pathname === "/api/ai/chat") {
+    if (!process.env.GEMINI_API_KEY) {
+      return json(res, 400, {
+        error: "GEMINI_API_KEY_MISSING",
+        message: "API Key Gemini belum terkonfigurasi. Silakan tambahkan variabel lingkungan GEMINI_API_KEY di dashboard hosting Anda."
+      });
+    }
+    try {
+      const body = await readJson(req);
+      if (!body.message) {
+        return json(res, 400, { error: "Pesan wajib diisi" });
       }
 
-      const monthlyReports = [];
-      const allMonths = Array.from(new Set([
-        ...revenues.map(r => r.month),
-        ...expenses.map(e => e.month)
-      ])).sort();
+      const context = await getAiContext();
+      const systemInstruction = `
+You are the Chief Business Consultant and Virtual COO for TERA, a premium clothing brand. You speak Indonesian.
+Your personality is sharp, friendly, professional, analytical, and business-savvy.
+You have access to the real-time business data of TERA:
+- Stocks: ${JSON.stringify(context.stocks)}
+- Auxiliary: ${JSON.stringify(context.auxiliary)}
+- Financial Reports: ${JSON.stringify(context.financials)}
 
-      for (const m of allMonths) {
-        const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
-        const grossSales = rev.online_revenue + rev.offline_revenue;
-        const monthExps = expensesByMonth[m] || [];
-        const totalExpenses = monthExps.reduce((sum, e) => sum + e.amount, 0);
+Your job is to answer the user's questions about their business performance, marketing, branding, stock replenishment, and financial health.
+Always relate your answers to the actual numbers and products (like 'Tera Premium T-Shirt', 'Packaging Baju', 'Hangtag', etc.) present in the data when relevant.
+Keep your answers highly practical, actionable, and structured using markdown. Keep responses concise but comprehensive.
+`;
 
-        if (grossSales === 0 && totalExpenses === 0) {
-          continue;
-        }
-
-        const komisi = Math.round(grossSales * 0.36);
-        const totalRevenue = grossSales - komisi;
-        const cogs = cogsMap.get(m) || 0;
-        const operatingIncome = totalRevenue - cogs;
-        
-        // Gaji Karyawan = 98000 + 6% of Operating Income
-        const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
-        
-        // Bahan Kain = sum of expenses of category 'Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'
-        const bahanKain = monthExps
-          .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'].includes(e.category))
-          .reduce((sum, e) => sum + e.amount, 0);
-
-        // Other Cost = sum of expenses other than Bahan Baku, PO, Packaging, Hangtag, and Gaji Karyawan
-        const otherCost = monthExps
-          .filter(e => !['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Gaji Karyawan'].includes(e.category))
-          .reduce((sum, e) => sum + e.amount, 0);
-
-        const netIncome = operatingIncome - otherCost - bayarDavid;
-
-        const qtySold = qtyMap.get(m) || 0;
-        const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
-
-        const cashReceived = bahanKain > 0 ? totalRevenue : operatingIncome;
-        const cashReceivedLabel = bahanKain > 0 ? 'Sales' : 'Operating income';
-
-        let beginningCash = 0;
-        if (m === '2026-03') {
-          beginningCash = 3822450;
-        } else if (monthlyReports.length > 0) {
-          beginningCash = monthlyReports[monthlyReports.length - 1].endingCash;
-        } else {
-          beginningCash = 0;
-        }
-
-        const totalCashAvailable = beginningCash + cashReceived;
-        
-        const biayaGaji = bayarDavid;
-        const otherExpenses = otherCost; 
-        const totalCashDisbursement = bahanKain + biayaGaji + otherExpenses;
-        const endingCash = totalCashAvailable - totalCashDisbursement;
-
-        monthlyReports.push({
-          month: m,
-          grossSales,
-          qtySold,
-          avgPrice,
-          komisi,
-          totalRevenue,
-          cogs,
-          operatingIncome,
-          bayarDavid, // Gaji Karyawan
-          otherCost,
-          netIncome,
-          beginningCash,
-          cashReceived,
-          cashReceivedLabel,
-          totalCashAvailable,
-          bahanKain,
-          biayaGaji,
-          otherExpenses,
-          totalCashDisbursement,
-          endingCash
-        });
-      }
-
-      return json(res, 200, monthlyReports);
+      const text = await callGemini(systemInstruction, body.message, body.history || []);
+      return json(res, 200, { response: text });
     } catch (error) {
       return json(res, 500, { error: error.message });
     }
