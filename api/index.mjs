@@ -35,6 +35,35 @@ async function initDb() {
     // Ignore error if column already exists or table doesn't exist yet
   }
 
+  // Run migration to add online_order_count to monthly_revenues if not exists
+  try {
+    await db.exec("ALTER TABLE monthly_revenues ADD COLUMN online_order_count INTEGER DEFAULT 0");
+  } catch (e) {
+    // Ignore error if column already exists
+  }
+
+  // Run migration to add category to purchase_order_items if not exists
+  try {
+    await db.exec("ALTER TABLE purchase_order_items ADD COLUMN category TEXT DEFAULT 'Bahan Baku'");
+  } catch (e) {
+    // Ignore error if column already exists
+  }
+
+  // Create and seed auxiliary_balances table if not exists
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS auxiliary_balances (
+        name TEXT PRIMARY KEY,
+        qty INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    await db.prepare("INSERT INTO auxiliary_balances (name, qty) VALUES ('Packaging Baju', 0) ON CONFLICT(name) DO NOTHING").run();
+    await db.prepare("INSERT INTO auxiliary_balances (name, qty) VALUES ('Packaging Order', 0) ON CONFLICT(name) DO NOTHING").run();
+    await db.prepare("INSERT INTO auxiliary_balances (name, qty) VALUES ('Hangtag', 0) ON CONFLICT(name) DO NOTHING").run();
+  } catch (e) {
+    console.error("Migration error for auxiliary_balances:", e);
+  }
+
   // Check if purchase_order_items needs migration from variant_id to material_name
   let dropPoItems = false;
   try {
@@ -117,6 +146,7 @@ async function initDb() {
       month TEXT NOT NULL UNIQUE,
       online_revenue INTEGER NOT NULL DEFAULT 0,
       offline_revenue INTEGER NOT NULL DEFAULT 0,
+      online_order_count INTEGER NOT NULL DEFAULT 0,
       online_notes TEXT,
       offline_notes TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -186,6 +216,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS purchase_order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       purchase_order_id INTEGER NOT NULL,
+      category TEXT DEFAULT 'Bahan Baku',
       material_name TEXT NOT NULL,
       qty INTEGER NOT NULL,
       cost_price INTEGER NOT NULL,
@@ -732,8 +763,32 @@ async function profitSummary() {
 }
 
 async function reverseMonthlyRevenueStock(month) {
-  const revenue = await db.prepare("SELECT id FROM monthly_revenues WHERE month = ?").get(month);
+  const revenue = await db.prepare("SELECT id, online_order_count FROM monthly_revenues WHERE month = ?").get(month);
   if (!revenue) return;
+
+  // Restore Packaging & Hangtag Stock
+  const itemsToRestore = await db.prepare(`
+    SELECT mri.online_qty, mri.offline_qty
+    FROM monthly_revenue_items mri
+    JOIN variants v ON v.id = mri.variant_id
+    JOIN products p ON p.id = v.product_id
+    WHERE mri.monthly_revenue_id = ? AND p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag')
+  `).all(revenue.id);
+  
+  let totalBajuSold = 0;
+  for (const item of itemsToRestore) {
+    totalBajuSold += (item.online_qty || 0) + (item.offline_qty || 0);
+  }
+  const onlineOrderCount = revenue.online_order_count || 0;
+  
+  if (totalBajuSold > 0) {
+    await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = 'Packaging Baju'").run(totalBajuSold);
+    await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = 'Hangtag'").run(totalBajuSold);
+  }
+  if (onlineOrderCount > 0) {
+    await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = 'Packaging Order'").run(onlineOrderCount);
+  }
+
   const items = await db.prepare("SELECT variant_id, online_qty, offline_qty FROM monthly_revenue_items WHERE monthly_revenue_id = ?").all(revenue.id);
   for (const item of items) {
     if (item.online_qty) {
@@ -1045,8 +1100,27 @@ async function api(req, res) {
       const po = await db.prepare("SELECT * FROM purchase_orders WHERE id = ?").get(id);
       if (!po) return json(res, 404, { error: "PO tidak ditemukan" });
       
+      const oldStatus = po.status;
       await db.prepare("UPDATE purchase_orders SET status = ? WHERE id = ?").run(status, id);
       
+      if (status === "Selesai" && oldStatus !== "Selesai") {
+        const items = await db.prepare("SELECT material_name, qty FROM purchase_order_items WHERE purchase_order_id = ?").all(id);
+        for (const it of items) {
+          const mName = it.material_name.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = ?").run(it.qty, mName);
+          }
+        }
+      } else if (oldStatus === "Selesai" && status !== "Selesai") {
+        const items = await db.prepare("SELECT material_name, qty FROM purchase_order_items WHERE purchase_order_id = ?").all(id);
+        for (const it of items) {
+          const mName = it.material_name.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = ?").run(it.qty, mName);
+          }
+        }
+      }
+
       if (status === "Dibatalkan") {
         await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`PO: ${po.po_no}%`);
       }
@@ -1077,11 +1151,17 @@ async function api(req, res) {
       const poId = result.lastInsertRowid;
 
       const itemStmt = await db.prepare(`
-        INSERT INTO purchase_order_items (purchase_order_id, material_name, qty, cost_price)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO purchase_order_items (purchase_order_id, category, material_name, qty, cost_price)
+        VALUES (?, ?, ?, ?, ?)
       `);
       for (const item of items) {
-        await itemStmt.run(poId, String(item.materialName).trim(), Number(item.qty), Number(item.costPrice));
+        await itemStmt.run(poId, String(item.category || 'Bahan Baku'), String(item.materialName).trim(), Number(item.qty), Number(item.costPrice));
+        if (status === "Selesai") {
+          const mName = String(item.materialName).trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = ?").run(Number(item.qty), mName);
+          }
+        }
       }
 
       // Add to monthly expenses immediately after creating PO
@@ -1134,7 +1214,15 @@ async function api(req, res) {
       const po = await db.prepare("SELECT * FROM purchase_orders WHERE id = ?").get(id);
       if (!po) return json(res, 404, { error: "PO tidak ditemukan" });
 
-
+      if (po.status === "Selesai") {
+        const items = await db.prepare("SELECT material_name, qty FROM purchase_order_items WHERE purchase_order_id = ?").all(id);
+        for (const it of items) {
+          const mName = it.material_name.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = ?").run(it.qty, mName);
+          }
+        }
+      }
 
       await db.prepare("DELETE FROM purchase_order_items WHERE purchase_order_id = ?").run(id);
       await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`PO: ${po.po_no}%`);
@@ -1344,11 +1432,12 @@ async function api(req, res) {
     try {
       await reverseMonthlyRevenueStock(body.month);
       await db.prepare(`
-        INSERT INTO monthly_revenues (month, online_revenue, offline_revenue, online_notes, offline_notes, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO monthly_revenues (month, online_revenue, offline_revenue, online_order_count, online_notes, offline_notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(month) DO UPDATE SET
           online_revenue = excluded.online_revenue,
           offline_revenue = excluded.offline_revenue,
+          online_order_count = excluded.online_order_count,
           online_notes = excluded.online_notes,
           offline_notes = excluded.offline_notes,
           updated_at = CURRENT_TIMESTAMP
@@ -1356,11 +1445,37 @@ async function api(req, res) {
         body.month,
         Number(body.onlineRevenue || 0),
         Number(body.offlineRevenue || 0),
+        Number(body.onlineOrderCount || 0),
         body.onlineNotes || "",
         body.offlineNotes || ""
       );
+
       const revenue = await db.prepare("SELECT id FROM monthly_revenues WHERE month = ?").get(body.month);
       await applyMonthlyRevenueItems(revenue.id, body.month, body.items || []);
+
+      // Deduct Packaging & Hangtags Stock
+      const onlineOrderCount = Number(body.onlineOrderCount || 0);
+      const itemsDeducted = await db.prepare(`
+        SELECT mri.online_qty, mri.offline_qty
+        FROM monthly_revenue_items mri
+        JOIN variants v ON v.id = mri.variant_id
+        JOIN products p ON p.id = v.product_id
+        WHERE mri.monthly_revenue_id = ? AND p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag')
+      `).all(revenue.id);
+
+      let totalBajuSold = 0;
+      for (const item of itemsDeducted) {
+        totalBajuSold += (item.online_qty || 0) + (item.offline_qty || 0);
+      }
+
+      if (totalBajuSold > 0) {
+        await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = 'Packaging Baju'").run(totalBajuSold);
+        await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = 'Hangtag'").run(totalBajuSold);
+      }
+      if (onlineOrderCount > 0) {
+        await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = 'Packaging Order'").run(onlineOrderCount);
+      }
+
       await db.exec("COMMIT");
       return json(res, 201, { ok: true });
     } catch (error) {
@@ -1506,6 +1621,156 @@ async function api(req, res) {
       return json(res, 500, { error: error.message });
     } finally {
       await db.exec("PRAGMA foreign_keys = ON");
+    }
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/keuangan/reports") {
+    try {
+      const revenues = await db.prepare(`
+        SELECT mr.id, mr.month, mr.online_revenue, mr.offline_revenue, mr.online_order_count
+        FROM monthly_revenues mr
+        ORDER BY mr.month ASC
+      `).all();
+
+      const expenses = await db.prepare(`
+        SELECT id, month, category, amount, note
+        FROM monthly_expenses
+      `).all();
+
+      const cogsList = await db.prepare(`
+        SELECT mr.month, SUM((mri.online_qty + mri.offline_qty) * v.cost_price) AS cogs
+        FROM monthly_revenue_items mri
+        JOIN variants v ON v.id = mri.variant_id
+        JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
+        GROUP BY mr.month
+      `).all();
+
+      const qtySoldList = await db.prepare(`
+        SELECT mr.month, SUM(mri.online_qty + mri.offline_qty) AS qty_sold
+        FROM monthly_revenue_items mri
+        JOIN monthly_revenues mr ON mr.id = mri.monthly_revenue_id
+        GROUP BY mr.month
+      `).all();
+
+      const cogsMap = new Map(cogsList.map(c => [c.month, c.cogs]));
+      const qtyMap = new Map(qtySoldList.map(q => [q.month, q.qty_sold]));
+
+      const expensesByMonth = {};
+      for (const e of expenses) {
+        if (!expensesByMonth[e.month]) {
+          expensesByMonth[e.month] = [];
+        }
+        expensesByMonth[e.month].push(e);
+      }
+
+      const monthlyReports = [];
+      const allMonths = Array.from(new Set([
+        ...revenues.map(r => r.month),
+        ...expenses.map(e => e.month)
+      ])).sort();
+
+      for (const m of allMonths) {
+        const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
+        const grossSales = rev.online_revenue + rev.offline_revenue;
+        const komisi = Math.round(grossSales * 0.36);
+        const totalRevenue = grossSales - komisi;
+        const cogs = cogsMap.get(m) || 0;
+        const operatingIncome = totalRevenue - cogs;
+        
+        // Gaji Karyawan = 98000 + 6% of Operating Income
+        const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
+
+        const monthExps = expensesByMonth[m] || [];
+        
+        // Bahan Kain = sum of expenses of category 'Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'
+        const bahanKain = monthExps
+          .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'].includes(e.category))
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        // Other Cost = sum of expenses other than Bahan Baku, PO, Packaging, Hangtag, and Gaji Karyawan
+        const otherCost = monthExps
+          .filter(e => !['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Gaji Karyawan'].includes(e.category))
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        const netIncome = operatingIncome - otherCost - bayarDavid;
+
+        const qtySold = qtyMap.get(m) || 0;
+        const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
+
+        const cashReceived = bahanKain > 0 ? totalRevenue : operatingIncome;
+        const cashReceivedLabel = bahanKain > 0 ? 'Sales' : 'Operating income';
+
+        let beginningCash = 0;
+        if (m === '2026-03') {
+          beginningCash = 3822450;
+        } else if (monthlyReports.length > 0) {
+          beginningCash = monthlyReports[monthlyReports.length - 1].endingCash;
+        } else {
+          beginningCash = 0;
+        }
+
+        const totalCashAvailable = beginningCash + cashReceived;
+        
+        const biayaGaji = bayarDavid;
+        const otherExpenses = otherCost; 
+        const totalCashDisbursement = bahanKain + biayaGaji + otherExpenses;
+        const endingCash = totalCashAvailable - totalCashDisbursement;
+
+        monthlyReports.push({
+          month: m,
+          grossSales,
+          qtySold,
+          avgPrice,
+          komisi,
+          totalRevenue,
+          cogs,
+          operatingIncome,
+          bayarDavid, // Gaji Karyawan
+          otherCost,
+          netIncome,
+          beginningCash,
+          cashReceived,
+          cashReceivedLabel,
+          totalCashAvailable,
+          bahanKain,
+          biayaGaji,
+          otherExpenses,
+          totalCashDisbursement,
+          endingCash
+        });
+      }
+
+      return json(res, 200, monthlyReports);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/inventory/categories") {
+    try {
+      const clothingStock = await db.prepare(`
+        SELECT p.category, SUM(ib.qty) AS total_qty,
+          SUM(CASE WHEN ip.name = 'Online Inventory' THEN ib.qty ELSE 0 END) AS online_qty,
+          SUM(CASE WHEN ip.name = 'Offline Inventory' THEN ib.qty ELSE 0 END) AS offline_qty
+        FROM inventory_balances ib
+        JOIN variants v ON v.id = ib.variant_id
+        JOIN products p ON p.id = v.product_id
+        JOIN inventory_pools ip ON ip.id = ib.pool_id
+        WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag')
+        GROUP BY p.category
+        ORDER BY total_qty DESC
+      `).all();
+
+      const auxiliaryStocks = await db.prepare(`
+        SELECT name, qty FROM auxiliary_balances
+      `).all();
+
+      return json(res, 200, {
+        clothing: clothingStock,
+        auxiliary: auxiliaryStocks
+      });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
     }
   }
 

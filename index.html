@@ -52,6 +52,7 @@
           <div class="nav-group">
             <div class="nav-group-title">BISNIS</div>
             <button class="nav" data-view="penjualan">↗ Penjualan</button>
+            <button class="nav" data-view="pengeluaran">💸 Pengeluaran</button>
             <button class="nav" data-view="keuangan">💰 Keuangan</button>
             <button class="nav" data-view="laporan">≡ Laporan</button>
           </div>
@@ -165,6 +166,9 @@
                   <option>Cap</option>
                   <option>Tote Bag</option>
                   <option>Outerwear</option>
+                  <option>Bahan Baku</option>
+                  <option>Packaging</option>
+                  <option>Hangtag</option>
                 </select>
               </div>
               <div>
@@ -206,72 +210,106 @@
 
         <!-- INVENTORI VIEW -->
         <section id="inventori" class="view">
-          <div class="grid two">
-            <section class="panel form-panel">
-              <div class="panel-head">
-                <h2>Terima Stock</h2>
-              </div>
-              <form id="receiveForm" class="stack">
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
-                  <select name="variantId" id="receiveVariant" required></select>
+          <div class="tab-header" style="margin-bottom:16px;">
+            <button class="tab-btn active" data-tab="stockTransferTab">Perpindahan Stock</button>
+            <button class="tab-btn" data-tab="stockHistoryTab">Riwayat Pergerakan Stock</button>
+          </div>
+
+          <!-- Tab 1: Perpindahan & Real-Time Stock -->
+          <div id="stockTransferTab" class="tab-content active">
+            <div class="grid two">
+              <section class="panel form-panel">
+                <div class="panel-head">
+                  <h2>Terima Stock</h2>
                 </div>
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Inventory Pool</label>
-                  <select name="poolId" id="receivePool" required></select>
-                </div>
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
-                  <input name="qty" type="number" min="1" value="1" required>
-                </div>
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan</label>
-                  <input name="note" placeholder="Catatan">
-                </div>
-                <button type="submit">＋ Stock</button>
-              </form>
-            </section>
-            <section class="panel form-panel">
-              <div class="panel-head">
-                <h2>Transfer Stock</h2>
-              </div>
-              <form id="transferForm" class="stack">
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
-                  <select name="variantId" id="transferVariant" required></select>
-                </div>
-                <div class="split">
+                <form id="receiveForm" class="stack">
                   <div>
-                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Dari Pool</label>
-                    <select name="fromPoolId" id="fromPool" required></select>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
+                    <select name="variantId" id="receiveVariant" required></select>
                   </div>
                   <div>
-                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Ke Pool</label>
-                    <select name="toPoolId" id="toPool" required></select>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Inventory Pool</label>
+                    <select name="poolId" id="receivePool" required></select>
                   </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
+                    <input name="qty" type="number" min="1" value="1" required>
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan</label>
+                    <input name="note" placeholder="Catatan">
+                  </div>
+                  <button type="submit">＋ Stock</button>
+                </form>
+              </section>
+              <section class="panel form-panel">
+                <div class="panel-head">
+                  <h2>Transfer Stock</h2>
                 </div>
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
-                  <input name="qty" type="number" min="1" value="1" required>
-                </div>
-                <div>
-                  <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan Transfer</label>
-                  <input name="note" placeholder="Catatan transfer">
-                </div>
-                <button type="submit">⇄ Transfer</button>
-              </form>
+                <form id="transferForm" class="stack">
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Artikel Varian</label>
+                    <select name="variantId" id="transferVariant" required></select>
+                  </div>
+                  <div class="split">
+                    <div>
+                      <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Dari Pool</label>
+                      <select name="fromPoolId" id="fromPool" required></select>
+                    </div>
+                    <div>
+                      <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Ke Pool</label>
+                      <select name="toPoolId" id="toPool" required></select>
+                    </div>
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Quantity (pcs)</label>
+                    <input name="qty" type="number" min="1" value="1" required>
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Catatan Transfer</label>
+                    <input name="note" placeholder="Catatan transfer">
+                  </div>
+                  <button type="submit">⇄ Transfer</button>
+                </form>
+              </section>
+            </div>
+
+            <!-- Stock Real-Time per Kategori -->
+            <section class="panel" style="margin-top: 16px;">
+              <div class="panel-head">
+                <h2>Stock Real-Time per Kategori</h2>
+                <span class="hint">Total stok fisik artikel, packaging, dan hangtag</span>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Kategori / Item</th>
+                      <th style="text-align:right;">Online Stock</th>
+                      <th style="text-align:right;">Offline Stock</th>
+                      <th style="text-align:right;">Total Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody id="categoryStockTableBody">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+              </div>
             </section>
           </div>
 
-          <section class="panel">
-            <div class="panel-head">
-              <h2>Riwayat Pergerakan Stock</h2>
-              <input id="movementMonth" class="month-filter" type="month" title="Filter bulan">
-            </div>
-            <div class="table-wrap">
-              <table id="movementsTable"></table>
-            </div>
-          </section>
+          <!-- Tab 2: Riwayat Stock -->
+          <div id="stockHistoryTab" class="tab-content">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Riwayat Pergerakan Stock</h2>
+                <input id="movementMonth" class="month-filter" type="month" title="Filter bulan">
+              </div>
+              <div class="table-wrap">
+                <table id="movementsTable"></table>
+              </div>
+            </section>
+          </div>
         </section>
 
         <!-- PEMBELIAN (PURCHASE ORDER & SUPPLIER) VIEW -->
@@ -396,6 +434,10 @@
                 <input name="offlineRevenue" type="number" min="0" placeholder="Kalkulasi otomatis" readonly required>
               </div>
               <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Jumlah Orderan Online</label>
+                <input name="onlineOrderCount" type="number" min="0" value="0" placeholder="Contoh: 15" required>
+              </div>
+              <div>
                 <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Catatan Online</label>
                 <input name="onlineNotes" placeholder="Catatan online">
               </div>
@@ -433,41 +475,90 @@
           </div>
         </section>
 
-        <!-- KEUANGAN (KAS & LABA RUGI) VIEW -->
+        <!-- KEUANGAN VIEW -->
         <section id="keuangan" class="view">
-          <div class="metrics-summary select-none">
-            <div class="metric-summary-card green">
-              <span>TOTAL PEMASUKAN</span>
-              <strong id="financeTotalIncome">Rp 0</strong>
+          <div class="tab-header" style="margin-bottom:16px;">
+            <button class="tab-btn active" data-tab="financeSummaryTab">Ringkasan Keuangan</button>
+            <button class="tab-btn" data-tab="incomeStatementTab">Income Statement</button>
+            <button class="tab-btn" data-tab="cashBudgetTab">Cash Budget</button>
+          </div>
+
+          <!-- Tab 1: Ringkasan Keuangan -->
+          <div id="financeSummaryTab" class="tab-content active">
+            <div class="metrics-summary select-none">
+              <div class="metric-summary-card green">
+                <span>TOTAL PEMASUKAN</span>
+                <strong id="financeTotalIncome">Rp 0</strong>
+              </div>
+              <div class="metric-summary-card red">
+                <span>TOTAL PENGELUARAN</span>
+                <strong id="financeTotalExpense">Rp 0</strong>
+              </div>
+              <div class="metric-summary-card" id="financeNetProfitCard">
+                <span>LABA BERSIH</span>
+                <strong id="financeNetProfit">Rp 0</strong>
+              </div>
             </div>
-            <div class="metric-summary-card red">
-              <span>TOTAL PENGELUARAN</span>
-              <strong id="financeTotalExpense">Rp 0</strong>
-            </div>
-            <div class="metric-summary-card" id="financeNetProfitCard">
-              <span>LABA BERSIH</span>
-              <strong id="financeNetProfit">Rp 0</strong>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Arus Kas 12 Bulan</h2>
+                <span class="hint">Pemasukan vs pengeluaran per bulan</span>
+              </div>
+              <canvas id="profitChart" height="280"></canvas>
+            </section>
+
+            <div class="grid two">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Transaksi Terbaru</h2>
+                  <span class="hint">Buku kas terkini</span>
+                </div>
+                <div class="table-wrap">
+                  <table id="recentTransactionsTable"></table>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Ringkasan Laba Rugi Bulanan</h2>
+                </div>
+                <div class="table-wrap">
+                  <table id="profitTable"></table>
+                </div>
+              </section>
             </div>
           </div>
 
-          <section class="panel">
-            <div class="panel-head">
-              <h2>Arus Kas 12 Bulan</h2>
-              <span class="hint">Pemasukan vs pengeluaran per bulan</span>
-            </div>
-            <canvas id="profitChart" height="280"></canvas>
-          </section>
-
-          <div class="grid two">
+          <!-- Tab 2: Income Statement -->
+          <div id="incomeStatementTab" class="tab-content">
             <section class="panel">
               <div class="panel-head">
-                <h2>Transaksi Terbaru</h2>
-                <span class="hint">Buku kas terkini</span>
+                <h2>Laporan Laba Rugi (Income Statement)</h2>
+                <span class="hint">Perhitungan profit periodik model TERA</span>
               </div>
-              <div class="table-wrap">
-                <table id="recentTransactionsTable"></table>
+              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
+                <table class="sheet-table" id="incomeStatementSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
               </div>
             </section>
+          </div>
+
+          <!-- Tab 3: Cash Budget -->
+          <div id="cashBudgetTab" class="tab-content">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Laporan Anggaran Kas (Cash Budget)</h2>
+                <span class="hint">Aliran kas masuk dan keluar model TERA</span>
+              </div>
+              <div class="sheet-container" style="overflow-x: auto; padding: 8px;">
+                <table class="sheet-table" id="cashBudgetSheet" style="width: 100%; border-collapse: collapse; min-width: 600px;"></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- PENGELUARAN VIEW -->
+        <section id="pengeluaran" class="view">
+          <div class="grid two">
             <section class="panel form-panel">
               <div class="panel-head">
                 <h2>Input Pengeluaran Bulanan</h2>
@@ -501,17 +592,6 @@
                 </div>
                 <button type="submit">✓ Simpan</button>
               </form>
-            </section>
-          </div>
-          
-          <div class="grid two">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Ringkasan Laba Rugi Bulanan</h2>
-              </div>
-              <div class="table-wrap">
-                <table id="profitTable"></table>
-              </div>
             </section>
             <section class="panel">
               <div class="panel-head">

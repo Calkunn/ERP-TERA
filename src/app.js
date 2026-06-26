@@ -8,7 +8,8 @@ const titles = {
   pembelian: ["Pembelian & PO", "Kelola purchase order dan database supplier."],
   produksi: ["Produksi", "Kelola batch produksi (cutting, sewing, finishing)."],
   penjualan: ["Penjualan", "Input pendapatan online/offline bulanan dan detail artikel terjual."],
-  keuangan: ["Keuangan", "Buku kas ledger keuangan, cashflow 12 bulan, dan laba rugi bulanan."],
+  pengeluaran: ["Pengeluaran", "Kelola biaya operasional, gaji, jahit, sablon, dan lainnya."],
+  keuangan: ["Keuangan", "Laporan Income Statement dan Cash Budget model TERA."],
   laporan: ["Laporan", "Ringkasan revenue, COGS, gross profit, dan margin SKU."],
   pengaturan: ["Pengaturan", "Informasi sistem dan konfigurasi server ERP."]
 };
@@ -414,6 +415,8 @@ async function loadMovements() {
     { label: "Qty", render: (r) => number.format(r.qty) },
     { label: "Catatan", key: "note" }
   ], rows);
+  
+  await loadCategoryStocks().catch(e => console.error(e));
 }
 
 async function loadMonthlyRevenue() {
@@ -721,7 +724,8 @@ async function loadOptions() {
   const data = await api("/api/options");
   productRows = data.variants;
   
-  const variantOptions = data.variants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name} (${v.size}/${v.color})</option>`).join("");
+  const sellableVariants = data.variants.filter(v => v.category !== "Bahan Baku" && v.category !== "Packaging" && v.category !== "Hangtag");
+  const variantOptions = sellableVariants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name} (${v.size}/${v.color})</option>`).join("");
   for (const id of ["receiveVariant", "transferVariant"]) {
     const el = document.querySelector(`#${id}`);
     if (el) el.innerHTML = variantOptions;
@@ -741,8 +745,8 @@ async function loadOptions() {
     const selects = revItemsRowsEl.querySelectorAll("select");
     selects.forEach(select => {
       const currentVal = select.value;
-      select.innerHTML = data.variants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name}</option>`).join("");
-      if (currentVal && data.variants.some(v => String(v.variant_id) === String(currentVal))) {
+      select.innerHTML = sellableVariants.map((v) => `<option value="${v.variant_id}">${v.sku} - ${v.name}</option>`).join("");
+      if (currentVal && sellableVariants.some(v => String(v.variant_id) === String(currentVal))) {
         select.value = currentVal;
       }
     });
@@ -763,7 +767,8 @@ async function refreshAll() {
     loadOptions(),
     loadProduksi(),
     loadPembelian(),
-    loadKeuangan()
+    loadKeuangan(),
+    loadKeuanganReports()
   ]);
 }
 
@@ -809,7 +814,11 @@ document.querySelectorAll(".nav").forEach((button) => {
         loadMonthlyRevenue().catch(e => console.error(e));
         loadOptions().catch(e => console.error(e));
       }
-      else if (viewId === "keuangan") loadKeuangan().catch(e => console.error(e));
+      else if (viewId === "pengeluaran") loadExpenses().catch(e => console.error(e));
+      else if (viewId === "keuangan") {
+        loadKeuangan().catch(e => console.error(e));
+        loadKeuanganReports().catch(e => console.error(e));
+      }
       else if (viewId === "laporan") loadReports().catch(e => console.error(e));
     }, 100);
   });
@@ -1022,21 +1031,29 @@ function addPoItemRow() {
   row.className = "item-row";
   
   row.innerHTML = `
-    <div style="display:flex; flex-direction:column; gap:4px;">
-      <label style="font-size:11px; font-weight:700; color:var(--muted);">Bahan Baku / Aksesoris (BOM)</label>
-      <input name="materialName" list="materialOptions" placeholder="Ketik nama bahan/aksesoris..." required autocomplete="off">
+    <div style="display:flex; flex-direction:column; gap:4px; flex: 1.2;">
+      <label style="font-size:11px; font-weight:700; color:var(--muted);">Kategori</label>
+      <select name="poItemCategory" class="po-item-category-select">
+        <option value="Bahan Baku">Bahan Baku</option>
+        <option value="Packaging">Packaging</option>
+        <option value="Hangtag">Hangtag</option>
+      </select>
     </div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; flex-direction:column; gap:4px; flex: 2;" class="material-name-container">
+      <label style="font-size:11px; font-weight:700; color:var(--muted);">Nama Item</label>
+      <input name="materialName" list="materialOptions" placeholder="Ketik nama bahan/aksesoris..." required autocomplete="off" style="width: 100%;">
+    </div>
+    <div style="display:flex; flex-direction:column; gap:4px; flex: 0.8;">
       <label style="font-size:11px; font-weight:700; color:var(--muted);">Qty</label>
-      <input name="qty" type="number" min="1" value="1" placeholder="Qty" required>
+      <input name="qty" type="number" min="1" value="1" placeholder="Qty" required style="width: 100%;">
     </div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
-      <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Satuan (Rp)</label>
-      <input name="costPrice" type="number" min="0" value="0" placeholder="Harga Satuan" required>
+    <div style="display:flex; flex-direction:column; gap:4px; flex: 1.2;">
+      <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Satuan</label>
+      <input name="costPrice" type="number" min="0" value="0" placeholder="Harga Satuan" required style="width: 100%;">
     </div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
-      <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Total (Rp)</label>
-      <input name="totalPrice" type="number" min="0" value="0" placeholder="Harga Total" required>
+    <div style="display:flex; flex-direction:column; gap:4px; flex: 1.2;">
+      <label style="font-size:11px; font-weight:700; color:var(--muted);">Harga Total</label>
+      <input name="totalPrice" type="number" min="0" value="0" placeholder="Harga Total" required style="width: 100%;">
     </div>
     <button class="mini danger remove-po-row" type="button" title="Hapus baris" style="margin-top:20px;">×</button>
   `;
@@ -1044,7 +1061,32 @@ function addPoItemRow() {
   const qtyInput = row.querySelector('[name="qty"]');
   const unitPriceInput = row.querySelector('[name="costPrice"]');
   const totalPriceInput = row.querySelector('[name="totalPrice"]');
-  
+  const categorySelect = row.querySelector('.po-item-category-select');
+  const nameContainer = row.querySelector('.material-name-container');
+
+  categorySelect.addEventListener('change', () => {
+    const cat = categorySelect.value;
+    if (cat === 'Packaging') {
+      nameContainer.innerHTML = `
+        <label style="font-size:11px; font-weight:700; color:var(--muted);">Nama Item</label>
+        <select name="materialName" required style="width: 100%;">
+          <option value="Packaging Baju">Packaging Baju</option>
+          <option value="Packaging Order">Packaging Order</option>
+        </select>
+      `;
+    } else if (cat === 'Hangtag') {
+      nameContainer.innerHTML = `
+        <label style="font-size:11px; font-weight:700; color:var(--muted);">Nama Item</label>
+        <input name="materialName" value="Hangtag" readonly style="background:var(--soft-primary); cursor:not-allowed; width: 100%;">
+      `;
+    } else {
+      nameContainer.innerHTML = `
+        <label style="font-size:11px; font-weight:700; color:var(--muted);">Nama Item</label>
+        <input name="materialName" list="materialOptions" placeholder="Ketik nama bahan/aksesoris..." required autocomplete="off" style="width: 100%;">
+      `;
+    }
+  });
+
   const updateFromUnit = () => {
     const qty = Number(qtyInput.value) || 1;
     const unitPrice = Number(unitPriceInput.value) || 0;
@@ -1128,6 +1170,7 @@ document.querySelector("#newPoForm").addEventListener("submit", async (event) =>
   const data = formData(event.target);
   
   const items = [...document.querySelectorAll("#poItemRows .item-row")].map(row => ({
+    category: row.querySelector('.po-item-category-select')?.value || 'Bahan Baku',
     materialName: row.querySelector('[name="materialName"]').value,
     qty: Number(row.querySelector('[name="qty"]').value),
     costPrice: Number(row.querySelector('[name="costPrice"]').value)
@@ -1440,12 +1483,12 @@ document.querySelector("#supplierTable").addEventListener("click", async (event)
 
 // Revenue form item row creator
 function addRevenueItemRow(item = {}) {
-  const variants = productRows.length ? productRows : [];
+  const sellable = (productRows || []).filter(v => v.category !== "Bahan Baku" && v.category !== "Packaging" && v.category !== "Hangtag");
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML = `
     <select name="variantId" required>
-      ${variants.map((v) => `<option value="${v.variant_id}" ${String(item.variant_id || item.variantId || "") === String(v.variant_id) ? "selected" : ""}>${v.sku} - ${v.name}</option>`).join("")}
+      ${sellable.map((v) => `<option value="${v.variant_id}" ${String(item.variant_id || item.variantId || "") === String(v.variant_id) ? "selected" : ""}>${v.sku} - ${v.name}</option>`).join("")}
     </select>
     <input name="onlineQty" type="number" min="0" value="${item.online_qty || item.onlineQty || 0}" placeholder="Qty online">
     <input name="offlineQty" type="number" min="0" value="${item.offline_qty || item.offlineQty || 0}" placeholder="Qty offline">
@@ -1630,6 +1673,7 @@ document.querySelector("#monthlyRevenueTable").addEventListener("click", async (
     form.offlineRevenue.value = row.offline_revenue;
     form.onlineNotes.value = row.online_notes || "";
     form.offlineNotes.value = row.offline_notes || "";
+    form.onlineOrderCount.value = row.online_order_count || 0;
     setRevenueItems(row.items || []);
     toast("Data pendapatan dimuat ke form untuk diedit.");
   }
@@ -1787,4 +1831,202 @@ if (resetBtn) {
       resetBtn.textContent = "Reset Database ke Awal";
     }
   });
+}
+
+async function loadKeuanganReports() {
+  try {
+    const data = await api("/api/keuangan/reports");
+    renderIncomeStatement(data);
+    renderCashBudget(data);
+  } catch (error) {
+    console.error("Failed to load keuangan reports:", error);
+  }
+}
+
+function renderIncomeStatement(data) {
+  const tableEl = document.querySelector("#incomeStatementSheet");
+  if (!tableEl) return;
+  
+  if (!data || !data.length) {
+    tableEl.innerHTML = `<tr><td style="text-align:center; padding:24px; color:var(--muted);">Belum ada data keuangan. Silakan input penjualan/pengeluaran terlebih dahulu.</td></tr>`;
+    return;
+  }
+  
+  let html = `
+    <tr class="header-row">
+      <td style="font-weight:800; min-width: 220px;">Tera</td>
+      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 180px;">Tera</td>`).join("")}
+    </tr>
+    <tr class="header-row">
+      <td style="font-weight:700;">Income Statement</td>
+      ${data.map(m => `<td style="font-weight:700; text-align:right;">Income Statement</td>`).join("")}
+    </tr>
+    <tr class="header-row">
+      <td style="color:var(--muted); font-size:11px;">For the period ended</td>
+      ${data.map(m => `<td style="text-align:right; font-size:11px;">For the period ended, ${monthName(m.month)}</td>`).join("")}
+    </tr>
+    
+    <tr style="height: 10px;"><td colspan="${data.length + 1}"></td></tr>
+    
+    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Revenue</td></tr>
+    <tr>
+      <td>Sales <span class="formula-note">(Quantity × Sell Price)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.grossSales)} <span class="formula-note" style="text-align:right;">(${m.qtySold} × ${rupiah.format(m.avgPrice)})</span></td>`).join("")}
+    </tr>
+    <tr>
+      <td>Dikurang komisi <span class="formula-note">(36%)</span></td>
+      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.komisi)} <span class="formula-note" style="text-align:right; color:#ef4444;">-36%</span></td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Total Revenue</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.totalRevenue)}</strong></td>`).join("")}
+    </tr>
+    
+    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Cost</td></tr>
+    <tr>
+      <td>COGS <span class="formula-note">(HPP Artikel Terjual)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.cogs)}</td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Operating Income</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.operatingIncome)}</strong></td>`).join("")}
+    </tr>
+    
+    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Other cost</td></tr>
+    <tr>
+      <td>Other cost <span class="formula-note">(Operasional & Marketing)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.otherCost)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Gaji Karyawan <span class="formula-note">(98rb + 6% dr Operating Income)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.bayarDavid)} <span class="formula-note" style="text-align:right;">98rb + 6% dr OI</span></td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Net Income</td>
+      ${data.map(m => `<td style="text-align:right;" class="cash-highlight">${rupiah.format(m.netIncome)}</td>`).join("")}
+    </tr>
+  `;
+  
+  tableEl.innerHTML = html;
+}
+
+function renderCashBudget(data) {
+  const tableEl = document.querySelector("#cashBudgetSheet");
+  if (!tableEl) return;
+  
+  if (!data || !data.length) {
+    tableEl.innerHTML = `<tr><td style="text-align:center; padding:24px; color:var(--muted);">Belum ada data keuangan. Silakan input penjualan/pengeluaran terlebih dahulu.</td></tr>`;
+    return;
+  }
+  
+  let html = `
+    <tr class="header-row">
+      <td style="font-weight:800; min-width: 220px;">Tera</td>
+      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 180px;">Tera</td>`).join("")}
+    </tr>
+    <tr class="header-row">
+      <td style="font-weight:700;">Cash Budget</td>
+      ${data.map(m => `<td style="font-weight:700; text-align:right;">Cash Budget</td>`).join("")}
+    </tr>
+    <tr class="header-row">
+      <td style="color:var(--muted); font-size:11px;">For the period ended</td>
+      ${data.map(m => `<td style="text-align:right; font-size:11px;">For the period ended, ${monthName(m.month)}</td>`).join("")}
+    </tr>
+    
+    <tr style="height: 10px;"><td colspan="${data.length + 1}"></td></tr>
+    
+    <tr>
+      <td>Beginning cash</td>
+      ${data.map(m => `<td style="text-align:right; font-weight:700;">${rupiah.format(m.beginningCash)}</td>`).join("")}
+    </tr>
+    
+    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Cash Received</td></tr>
+    <tr>
+      <td>Sales / Operating income <span class="formula-note">(Sales jika ada Bahan Kain > 0, else Operating Income)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.cashReceived)} <span class="formula-note" style="text-align:right; font-weight:600; color:var(--accent);">${m.cashReceivedLabel}</span></td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Total cash available</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.totalCashAvailable)}</strong></td>`).join("")}
+    </tr>
+    
+    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Cash Disbursement (pengeluaran)</td></tr>
+    <tr>
+      <td>Bahan Kain <span class="formula-note">(PO / Bahan / Packaging / Hangtag)</span></td>
+      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.bahanKain)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Biaya gaji <span class="formula-note">(Gaji Karyawan)</span></td>
+      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.biayaGaji)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Biaya Operasional & Lainnya <span class="formula-note">(Marketing, Sewa, dll)</span></td>
+      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.otherExpenses)}</td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Total cash disbursement</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>-${rupiah.format(m.totalCashDisbursement)}</strong></td>`).join("")}
+    </tr>
+    <tr class="total-row">
+      <td>Cash di rekening saat ini</td>
+      ${data.map(m => `<td style="text-align:right;" class="cash-highlight">${rupiah.format(m.endingCash)}</td>`).join("")}
+    </tr>
+  `;
+  
+  tableEl.innerHTML = html;
+}
+
+async function loadCategoryStocks() {
+  try {
+    const data = await api("/api/inventory/categories");
+    const tbody = document.querySelector("#categoryStockTableBody");
+    if (!tbody) return;
+    
+    let html = "";
+    data.clothing.forEach(row => {
+      html += `
+        <tr>
+          <td><strong>${row.category}</strong></td>
+          <td style="text-align:right;">${number.format(row.online_qty)} pcs</td>
+          <td style="text-align:right;">${number.format(row.offline_qty)} pcs</td>
+          <td style="text-align:right;"><strong>${number.format(row.total_qty)} pcs</strong></td>
+        </tr>
+      `;
+    });
+    
+    let pkgBaju = 0;
+    let pkgOrder = 0;
+    let hangtag = 0;
+    
+    data.auxiliary.forEach(row => {
+      if (row.name === "Packaging Baju") pkgBaju = row.qty;
+      if (row.name === "Packaging Order") pkgOrder = row.qty;
+      if (row.name === "Hangtag") hangtag = row.qty;
+    });
+    
+    html += `
+      <tr style="border-top: 2px solid var(--line); background: var(--soft-primary);">
+        <td><strong>Packaging Baju</strong></td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right;"><strong>${number.format(pkgBaju)} pcs</strong></td>
+      </tr>
+      <tr style="background: var(--soft-primary);">
+        <td><strong>Packaging Order</strong></td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right;"><strong>${number.format(pkgOrder)} pcs</strong></td>
+      </tr>
+      <tr style="background: var(--soft-primary);">
+        <td><strong>Hangtag</strong></td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right; color:var(--muted);">-</td>
+        <td style="text-align:right;"><strong>${number.format(hangtag)} pcs</strong></td>
+      </tr>
+    `;
+    
+    tbody.innerHTML = html;
+  } catch (error) {
+    console.error("Failed to load category stocks:", error);
+  }
 }

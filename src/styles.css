@@ -1768,3 +1768,89 @@ dialog[open]::backdrop {
   gap: 14px;
 }
 
+/* Financial Report Sheets */
+.sheet-container {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.sheet-table {
+  border-collapse: collapse;
+}
+
+.sheet-table th, .sheet-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.sheet-table th {
+  background: var(--soft-primary);
+  color: var(--ink);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.sheet-table tr.header-row {
+  background: var(--soft-primary);
+  font-weight: 800;
+}
+
+.sheet-table tr.header-row td {
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 2px solid var(--primary);
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.sheet-table tr.total-row {
+  background: var(--soft-tertiary);
+  font-weight: 700;
+}
+
+.sheet-table tr.total-row td {
+  border-top: 1px solid var(--line);
+  border-bottom: 2px solid var(--line);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.sheet-table tr.highlight-row {
+  font-weight: 700;
+}
+
+.sheet-table tr.highlight-row td {
+  border-top: 2px solid var(--line);
+  border-bottom: 3px double var(--line);
+}
+
+/* Turquoise balance cell highlight matching the spreadsheet photo */
+.cash-highlight {
+  background-color: #00ffff !important;
+  color: #09090b !important;
+  font-weight: 800 !important;
+}
+
+body.dark .cash-highlight {
+  background-color: #0891b2 !important; /* cyan-600 */
+  color: #ffffff !important;
+}
+
+.sheet-table .formula-note {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  display: block;
+  margin-top: 2px;
+}
+

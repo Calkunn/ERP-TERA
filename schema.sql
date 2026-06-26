@@ -85,6 +85,7 @@ CREATE TABLE monthly_revenues (
   month TEXT NOT NULL UNIQUE,
   online_revenue INTEGER NOT NULL DEFAULT 0,
   offline_revenue INTEGER NOT NULL DEFAULT 0,
+  online_order_count INTEGER NOT NULL DEFAULT 0,
   online_notes TEXT,
   offline_notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -156,9 +157,15 @@ CREATE TABLE purchase_orders (
 CREATE TABLE purchase_order_items (
   id SERIAL PRIMARY KEY,
   purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  category TEXT DEFAULT 'Bahan Baku',
   material_name TEXT NOT NULL,
   qty INTEGER NOT NULL,
   cost_price INTEGER NOT NULL
+);
+
+CREATE TABLE auxiliary_balances (
+  name TEXT PRIMARY KEY,
+  qty INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE production_batches (
