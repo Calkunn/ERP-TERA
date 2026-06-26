@@ -1253,7 +1253,7 @@ document.querySelector("#newBatchBtn").addEventListener("click", async () => {
   const uniqueProducts = [];
   const seenIds = new Set();
   data.variants.forEach(row => {
-    const isMaterial = row.category === "Bahan Baku" || row.category === "Aksesoris";
+    const isMaterial = row.category === "Bahan Baku" || (row.category === "Aksesoris" && row.sell_price === 0);
     if (!isMaterial && !seenIds.has(row.product_id)) {
       seenIds.add(row.product_id);
       uniqueProducts.push(row);
@@ -1291,7 +1291,7 @@ document.querySelector("#addBatchItemBtn").addEventListener("click", async () =>
   const uniqueProducts = [];
   const seenIds = new Set();
   data.variants.forEach(row => {
-    const isMaterial = row.category === "Bahan Baku" || row.category === "Aksesoris";
+    const isMaterial = row.category === "Bahan Baku" || (row.category === "Aksesoris" && row.sell_price === 0);
     if (!isMaterial && !seenIds.has(row.product_id)) {
       seenIds.add(row.product_id);
       uniqueProducts.push(row);
