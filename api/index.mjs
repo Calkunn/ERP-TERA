@@ -1672,6 +1672,13 @@ async function api(req, res) {
       for (const m of allMonths) {
         const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
         const grossSales = rev.online_revenue + rev.offline_revenue;
+        const monthExps = expensesByMonth[m] || [];
+        const totalExpenses = monthExps.reduce((sum, e) => sum + e.amount, 0);
+
+        if (grossSales === 0 && totalExpenses === 0) {
+          continue;
+        }
+
         const komisi = Math.round(grossSales * 0.36);
         const totalRevenue = grossSales - komisi;
         const cogs = cogsMap.get(m) || 0;
@@ -1679,8 +1686,6 @@ async function api(req, res) {
         
         // Gaji Karyawan = 98000 + 6% of Operating Income
         const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
-
-        const monthExps = expensesByMonth[m] || [];
         
         // Bahan Kain = sum of expenses of category 'Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'
         const bahanKain = monthExps
