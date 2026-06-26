@@ -1749,7 +1749,7 @@ async function api(req, res) {
   if (req.method === "GET" && url.pathname === "/api/inventory/categories") {
     try {
       const clothingStock = await db.prepare(`
-        SELECT p.category, SUM(ib.qty) AS total_qty,
+        SELECT p.category, p.name AS product_name, SUM(ib.qty) AS total_qty,
           SUM(CASE WHEN ip.name = 'Online Inventory' THEN ib.qty ELSE 0 END) AS online_qty,
           SUM(CASE WHEN ip.name = 'Offline Inventory' THEN ib.qty ELSE 0 END) AS offline_qty
         FROM inventory_balances ib
@@ -1757,8 +1757,8 @@ async function api(req, res) {
         JOIN products p ON p.id = v.product_id
         JOIN inventory_pools ip ON ip.id = ib.pool_id
         WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag')
-        GROUP BY p.category
-        ORDER BY total_qty DESC
+        GROUP BY p.category, p.name
+        ORDER BY p.category ASC, p.name ASC
       `).all();
 
       const auxiliaryStocks = await db.prepare(`

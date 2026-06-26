@@ -1988,7 +1988,7 @@ async function loadCategoryStocks() {
     data.clothing.forEach(row => {
       html += `
         <tr>
-          <td><strong>${row.category}</strong></td>
+          <td><strong>${row.category} - ${row.product_name}</strong></td>
           <td style="text-align:right;">${number.format(row.online_qty)} pcs</td>
           <td style="text-align:right;">${number.format(row.offline_qty)} pcs</td>
           <td style="text-align:right;"><strong>${number.format(row.total_qty)} pcs</strong></td>
