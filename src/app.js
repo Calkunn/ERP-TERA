@@ -1845,6 +1845,32 @@ async function loadKeuanganReports() {
   }
 }
 
+// Event delegation for deleting reports
+document.querySelector("#laporan")?.addEventListener("click", async (event) => {
+  if (event.target.classList.contains("delete-report-btn")) {
+    const month = event.target.dataset.month;
+    const confirmDelete = confirm(`Apakah Anda yakin ingin menghapus seluruh data laporan (penjualan dan pengeluaran) untuk bulan ${month}? Perubahan ini tidak dapat dibatalkan.`);
+    if (!confirmDelete) return;
+
+    try {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = "Menghapus...";
+      const res = await api(`/api/keuangan/reports/${month}`, { method: "DELETE" });
+      if (res.ok) {
+        toast(`Laporan bulan ${month} berhasil dihapus.`);
+        await loadKeuanganReports();
+      } else {
+        throw new Error(res.error || "Gagal menghapus laporan.");
+      }
+    } catch (err) {
+      toast("Error: " + err.message);
+      event.target.disabled = false;
+      event.target.textContent = "Hapus";
+    }
+  }
+});
+
 function renderIncomeStatement(data) {
   const tableEl = document.querySelector("#incomeStatementSheet");
   if (!tableEl) return;
@@ -1865,7 +1891,14 @@ function renderIncomeStatement(data) {
     </tr>
     <tr class="header-row">
       <td style="color:var(--muted); font-size:11px;">For the period ended</td>
-      ${data.map(m => `<td style="text-align:right; font-size:11px;">For the period ended, ${monthName(m.month)}</td>`).join("")}
+      ${data.map(m => `
+        <td style="text-align:right; font-size:11px;">
+          For the period ended, ${monthName(m.month)}
+          <div style="margin-top:4px;">
+            <button class="delete-report-btn" data-month="${m.month}" style="background:#ef4444; color:white; border:none; padding:2px 6px; border-radius:4px; font-size:10px; cursor:pointer;">Hapus</button>
+          </div>
+        </td>
+      `).join("")}
     </tr>
     
     <tr style="height: 10px;"><td colspan="${data.length + 1}"></td></tr>
@@ -1932,7 +1965,14 @@ function renderCashBudget(data) {
     </tr>
     <tr class="header-row">
       <td style="color:var(--muted); font-size:11px;">For the period ended</td>
-      ${data.map(m => `<td style="text-align:right; font-size:11px;">For the period ended, ${monthName(m.month)}</td>`).join("")}
+      ${data.map(m => `
+        <td style="text-align:right; font-size:11px;">
+          For the period ended, ${monthName(m.month)}
+          <div style="margin-top:4px;">
+            <button class="delete-report-btn" data-month="${m.month}" style="background:#ef4444; color:white; border:none; padding:2px 6px; border-radius:4px; font-size:10px; cursor:pointer;">Hapus</button>
+          </div>
+        </td>
+      `).join("")}
     </tr>
     
     <tr style="height: 10px;"><td colspan="${data.length + 1}"></td></tr>

@@ -1751,6 +1751,21 @@ async function api(req, res) {
     }
   }
 
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/keuangan/reports/")) {
+    const month = decodeURIComponent(url.pathname.split("/").at(-1));
+    await db.exec("BEGIN");
+    try {
+      await reverseMonthlyRevenueStock(month);
+      await db.prepare("DELETE FROM monthly_revenues WHERE month = ?").run(month);
+      await db.prepare("DELETE FROM monthly_expenses WHERE month = ?").run(month);
+      await db.exec("COMMIT");
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: error.message });
+    }
+  }
+
   if (req.method === "GET" && url.pathname === "/api/inventory/categories") {
     try {
       const clothingStock = await db.prepare(`
