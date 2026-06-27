@@ -942,11 +942,11 @@ async function calculateKeuanganReports() {
     const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
 
     const bahanKain = monthExps
-      .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag'].includes(e.category))
+      .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Produksi', 'Jasa Jahit', 'Sablon / Bordir'].includes(e.category))
       .reduce((sum, e) => sum + e.amount, 0);
 
     const otherCost = monthExps
-      .filter(e => !['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Gaji Karyawan'].includes(e.category))
+      .filter(e => ['Operasional', 'Marketing', 'Lainnya'].includes(e.category))
       .reduce((sum, e) => sum + e.amount, 0);
 
     const netIncome = operatingIncome - otherCost - bayarDavid;
