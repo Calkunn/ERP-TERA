@@ -19,6 +19,8 @@ let authToken = localStorage.getItem("tera_token") || "";
 let currentUser = JSON.parse(localStorage.getItem("tera_user") || "null");
 let productRows = [];
 let monthlyRevenueRows = [];
+let currentProductionBatches = [];
+let currentPurchaseOrders = [];
 
 // Base URL backend untuk Vercel. Menggunakan environment variable VITE_API_URL jika ada (misal di Vercel), default kosong (menggunakan proxy lokal).
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -480,6 +482,7 @@ async function loadReports() {
 
 async function loadProduksi() {
   const batches = await api("/api/production/batches");
+  currentProductionBatches = batches;
 
   // Summary stats
   const activeBatches = batches.filter(b => b.status === "Sedang Diproses");
@@ -558,7 +561,10 @@ async function loadProduksi() {
         </div>
         <div class="production-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
           <span style="font-size:12px; color:var(--muted);">${b.status === 'Selesai' && b.completed_at ? `Selesai: ${new Date(b.completed_at.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}` : `Due: ${new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`}</span>
-          ${isOngoing ? `<button class="mini edit-progress-btn" data-id="${b.id}" data-no="${b.batch_no}" data-cutting="${b.cutting_progress}" data-sewing="${b.sewing_progress}" data-finishing="${b.finishing_progress}" type="button">Update Progress</button>` : ''}
+          <div style="display:flex; gap:6px;">
+            <button class="mini edit-batch-detail-btn" data-id="${b.id}" type="button">Edit Detail</button>
+            ${isOngoing ? `<button class="mini edit-progress-btn" data-id="${b.id}" data-no="${b.batch_no}" data-cutting="${b.cutting_progress}" data-sewing="${b.sewing_progress}" data-finishing="${b.finishing_progress}" type="button">Update Progress</button>` : ''}
+          </div>
         </div>
       </article>
     `;
@@ -585,9 +591,11 @@ async function loadPembelian() {
     api("/api/purchase-orders"),
     api("/api/suppliers")
   ]);
+  currentPurchaseOrders = pos;
 
   // Filter out completed and canceled POs (only show ongoing POs)
   const activePos = pos.filter(r => r.status !== 'Selesai' && r.status !== 'Dibatalkan');
+  const historyPos = pos.filter(r => r.status === 'Selesai' || r.status === 'Dibatalkan');
   const shippedPos = activePos.filter(r => r.status === 'Dikirim');
   const totalExpenses = activePos.reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
 
@@ -595,64 +603,82 @@ async function loadPembelian() {
   document.querySelector("#totalShippedPos").textContent = shippedPos.length;
   document.querySelector("#totalPoExpenses").textContent = rupiah.format(totalExpenses);
 
+  const renderPoCard = (r, isHistory) => {
+    const itemsHtml = r.items.map(it => {
+      const spec = [it.sku, it.size && it.color ? `${it.size}/${it.color}` : ""].filter(Boolean).join(" - ");
+      const specText = spec ? ` (${spec})` : "";
+      return `
+        <div class="po-card-item">
+          <span class="po-card-item-name">${it.product_name || it.material_name}${specText}</span>
+          <span>x${it.qty}</span>
+        </div>
+      `;
+    }).join("");
+
+    let badgeClass = 'warn';
+    if (r.status === 'Dikirim') badgeClass = 'marketplace';
+    if (r.status === 'Diterima Sebagian') badgeClass = 'offline';
+    if (r.status === 'Selesai') badgeClass = 'marketplace';
+    if (r.status === 'Dibatalkan') badgeClass = 'offline';
+
+    return `
+      <article class="po-card">
+        <div class="po-card-header">
+          <div>
+            <h3>${r.po_no}</h3>
+            <p>${new Date(r.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge ${badgeClass}">${r.status}</span>
+            <button class="mini danger delete-po-btn" data-id="${r.id}" data-no="${r.po_no}" style="padding:4px 8px; font-size:10px; min-height:auto;" type="button">🗑</button>
+          </div>
+        </div>
+        <div class="po-card-body">
+          <div class="po-card-info-row">
+            <span>Supplier:</span>
+            <strong>${r.supplier_name}</strong>
+          </div>
+          <div class="po-card-info-row">
+            <span>Tujuan:</span>
+            <strong>${r.pool_name}</strong>
+          </div>
+          <div class="po-card-items">
+            <div style="font-size:9px; text-transform:uppercase; color:var(--muted); font-weight:800; margin-bottom:6px; letter-spacing:0.5px;">Items PO (${r.items.length})</div>
+            ${itemsHtml}
+          </div>
+        </div>
+        <div class="po-card-footer" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div class="po-card-total">
+            <span>Total Pengeluaran</span>
+            <strong>${rupiah.format(r.total_amount)}</strong>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="mini edit-po-btn" data-id="${r.id}" type="button" style="padding:6px 12px; font-size:11px; min-height:auto;">Edit</button>
+            ${!isHistory ? `
+              <button class="po-card-btn mark-po-complete-btn" data-id="${r.id}" data-no="${r.po_no}" type="button" style="padding:6px 12px; font-size:11px; min-height:auto;">
+                ✓ Selesai
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </article>
+    `;
+  };
+
   const purchaseOrderList = document.querySelector("#purchaseOrderList");
   if (!activePos.length) {
     purchaseOrderList.innerHTML = `<div class="panel" style="padding:24px; grid-column:1/-1; text-align:center; color:var(--muted); font-weight:700;">Belum ada purchase order aktif.</div>`;
   } else {
-    purchaseOrderList.innerHTML = activePos.map(r => {
-      const itemsHtml = r.items.map(it => {
-        const spec = [it.sku, it.size && it.color ? `${it.size}/${it.color}` : ""].filter(Boolean).join(" - ");
-        const specText = spec ? ` (${spec})` : "";
-        return `
-          <div class="po-card-item">
-            <span class="po-card-item-name">${it.product_name}${specText}</span>
-            <span>x${it.qty}</span>
-          </div>
-        `;
-      }).join("");
+    purchaseOrderList.innerHTML = activePos.map(r => renderPoCard(r, false)).join("");
+  }
 
-      let badgeClass = 'warn';
-      if (r.status === 'Dikirim') badgeClass = 'marketplace';
-      if (r.status === 'Diterima Sebagian') badgeClass = 'offline';
-
-      return `
-        <article class="po-card">
-          <div class="po-card-header">
-            <div>
-              <h3>${r.po_no}</h3>
-              <p>${new Date(r.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</p>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span class="badge ${badgeClass}">${r.status}</span>
-              <button class="mini danger delete-po-btn" data-id="${r.id}" data-no="${r.po_no}" style="padding:4px 8px; font-size:10px; min-height:auto;" type="button">🗑</button>
-            </div>
-          </div>
-          <div class="po-card-body">
-            <div class="po-card-info-row">
-              <span>Supplier:</span>
-              <strong>${r.supplier_name}</strong>
-            </div>
-            <div class="po-card-info-row">
-              <span>Tujuan:</span>
-              <strong>${r.pool_name}</strong>
-            </div>
-            <div class="po-card-items">
-              <div style="font-size:9px; text-transform:uppercase; color:var(--muted); font-weight:800; margin-bottom:6px; letter-spacing:0.5px;">Items PO (${r.items.length})</div>
-              ${itemsHtml}
-            </div>
-          </div>
-          <div class="po-card-footer">
-            <div class="po-card-total">
-              <span>Total Pengeluaran</span>
-              <strong>${rupiah.format(r.total_amount)}</strong>
-            </div>
-            <button class="po-card-btn mark-po-complete-btn" data-id="${r.id}" data-no="${r.po_no}" type="button">
-              ✓ Selesai
-            </button>
-          </div>
-        </article>
-      `;
-    }).join("");
+  const purchaseOrderHistoryList = document.querySelector("#purchaseOrderHistoryList");
+  if (purchaseOrderHistoryList) {
+    if (!historyPos.length) {
+      purchaseOrderHistoryList.innerHTML = `<div class="panel" style="padding:24px; grid-column:1/-1; text-align:center; color:var(--muted); font-weight:700;">Belum ada riwayat purchase order.</div>`;
+    } else {
+      purchaseOrderHistoryList.innerHTML = historyPos.map(r => renderPoCard(r, true)).join("");
+    }
   }
 
   table("#supplierTable", [
@@ -1129,6 +1155,11 @@ document.querySelector("#poItemRows").addEventListener("click", (event) => {
 
 // Open PO dialog
 document.querySelector("#newPoBtn").addEventListener("click", async () => {
+  // Reset dialog title and hidden ID input
+  document.querySelector('#poDialog h2').textContent = "Buat Purchase Order Baru";
+  const idInput = document.querySelector('#newPoForm [name="poId"]');
+  if (idInput) idInput.remove();
+
   const [data, pos] = await Promise.all([
     api("/api/options"),
     api("/api/purchase-orders")
@@ -1166,6 +1197,11 @@ document.querySelector("#newPoBtn").addEventListener("click", async () => {
     poNoInput.style.background = "var(--soft-primary)";
     poNoInput.style.cursor = "not-allowed";
   }
+
+  const statusSelect = document.querySelector('#newPoForm [name="status"]');
+  if (statusSelect) {
+    statusSelect.value = "Draft";
+  }
   
   document.querySelector("#poDialog").showModal();
 });
@@ -1183,8 +1219,12 @@ document.querySelector("#newPoForm").addEventListener("submit", async (event) =>
   }));
   
   try {
-    await api("/api/purchase-orders", {
-      method: "POST",
+    const isEdit = !!data.poId;
+    const url = isEdit ? `/api/purchase-orders/${data.poId}/details` : "/api/purchase-orders";
+    const method = isEdit ? "PUT" : "POST";
+
+    await api(url, {
+      method: method,
       body: JSON.stringify({
         poNo: data.poNo,
         supplierId: Number(data.supplierId),
@@ -1196,7 +1236,13 @@ document.querySelector("#newPoForm").addEventListener("submit", async (event) =>
     
     document.querySelector("#poDialog").close();
     event.target.reset();
-    toast("Purchase Order berhasil disimpan.");
+    
+    // Reset dialog header & ID
+    document.querySelector('#poDialog h2').textContent = "Buat Purchase Order Baru";
+    const idInput = document.querySelector('#newPoForm [name="poId"]');
+    if (idInput) idInput.remove();
+
+    toast(isEdit ? "Purchase Order berhasil diubah." : "Purchase Order berhasil disimpan.");
     await refreshAll();
   } catch (error) {
     toast(error.message);
@@ -1216,13 +1262,77 @@ document.querySelector("#supplierForm").addEventListener("submit", async (event)
   }
 });
 
-// Mark PO Complete/Cancel/Delete Event Listener
-document.querySelector("#purchaseOrderList").addEventListener("click", async (event) => {
+// Mark PO Complete/Cancel/Delete/Edit Event Listener
+const handlePoClick = async (event) => {
   const completeBtn = event.target.closest(".mark-po-complete-btn");
   const cancelBtn = event.target.closest(".cancel-po-btn");
   const deleteBtn = event.target.closest(".delete-po-btn");
+  const editBtn = event.target.closest(".edit-po-btn");
   
-  if (completeBtn) {
+  if (editBtn) {
+    const id = Number(editBtn.dataset.id);
+    const po = currentPurchaseOrders.find(p => p.id === id);
+    if (po) {
+      // 1. Set form header & hidden ID
+      document.querySelector('#poDialog h2').textContent = "Edit Purchase Order";
+      let idInput = document.querySelector('#newPoForm [name="poId"]');
+      if (!idInput) {
+        idInput = document.createElement("input");
+        idInput.type = "hidden";
+        idInput.name = "poId";
+        document.querySelector('#newPoForm').appendChild(idInput);
+      }
+      idInput.value = po.id;
+
+      // 2. Load suppliers and pools list first
+      const data = await api("/api/options");
+      document.querySelector("#poFormSupplier").innerHTML = data.suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+      document.querySelector("#poFormPool").innerHTML = data.pools.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+      
+      let datalist = document.querySelector("#materialOptions");
+      if (!datalist) {
+        datalist = document.createElement("datalist");
+        datalist.id = "materialOptions";
+        document.body.appendChild(datalist);
+      }
+      datalist.innerHTML = data.bomMaterials.map(m => `<option value="${m.material_name}">${m.material_name} (${m.unit})</option>`).join("");
+
+      // 3. Pre-fill PO fields
+      document.querySelector('#newPoForm [name="poNo"]').value = po.po_no;
+      document.querySelector('#newPoForm [name="supplierId"]').value = po.supplier_id;
+      document.querySelector('#newPoForm [name="poolId"]').value = po.pool_id;
+      document.querySelector('#newPoForm [name="status"]').value = po.status;
+
+      const poNoInput = document.querySelector('#newPoForm [name="poNo"]');
+      if (poNoInput) {
+        poNoInput.readOnly = false;
+        poNoInput.style.background = "";
+        poNoInput.style.cursor = "";
+      }
+
+      // 4. Clear and populate items
+      const container = document.querySelector("#poItemRows");
+      container.innerHTML = "";
+      
+      po.items.forEach(item => {
+        addPoItemRow();
+        const lastRow = container.lastElementChild;
+        
+        const catSelect = lastRow.querySelector('.po-item-category-select');
+        catSelect.value = item.category;
+        catSelect.dispatchEvent(new Event('change'));
+        
+        const nameInput = lastRow.querySelector('[name="materialName"]');
+        nameInput.value = item.material_name;
+        
+        lastRow.querySelector('[name="qty"]').value = item.qty;
+        lastRow.querySelector('[name="costPrice"]').value = item.cost_price;
+        lastRow.querySelector('[name="totalPrice"]').value = item.qty * item.cost_price;
+      });
+
+      document.querySelector("#poDialog").showModal();
+    }
+  } else if (completeBtn) {
     const id = completeBtn.dataset.id;
     const no = completeBtn.dataset.no;
     if (confirm(`Apakah Anda yakin ingin menyelesaikan Purchase Order ${no}?`)) {
@@ -1268,7 +1378,13 @@ document.querySelector("#purchaseOrderList").addEventListener("click", async (ev
       }
     }
   }
-});
+};
+
+document.querySelector("#purchaseOrderList").addEventListener("click", handlePoClick);
+const poHistoryListEl = document.querySelector("#purchaseOrderHistoryList");
+if (poHistoryListEl) {
+  poHistoryListEl.addEventListener("click", handlePoClick);
+}
 
 
 
@@ -1298,6 +1414,10 @@ function addBatchItemRow(products) {
 
 // Open Production Batch Dialog
 document.querySelector("#newBatchBtn").addEventListener("click", async () => {
+  document.querySelector('#batchDialog h2').textContent = "Buat Batch Produksi Baru";
+  const idInput = document.querySelector('#newBatchForm [name="batchId"]');
+  if (idInput) idInput.remove();
+
   const data = await api("/api/options");
   const uniqueProducts = [];
   const seenIds = new Set();
@@ -1372,8 +1492,12 @@ document.querySelector("#newBatchForm").addEventListener("submit", async (event)
   }));
 
   try {
-    await api("/api/production/batches", {
-      method: "POST",
+    const isEdit = !!data.batchId;
+    const url = isEdit ? `/api/production/batches/${data.batchId}/details` : "/api/production/batches";
+    const method = isEdit ? "PUT" : "POST";
+
+    await api(url, {
+      method: method,
       body: JSON.stringify({
         batchNo: data.batchNo,
         batchType: data.batchType,
@@ -1381,22 +1505,84 @@ document.querySelector("#newBatchForm").addEventListener("submit", async (event)
         items
       })
     });
+    
     document.querySelector("#batchDialog").close();
     event.target.reset();
-    toast("Batch produksi berhasil dibuat.");
+    
+    document.querySelector('#batchDialog h2').textContent = "Buat Batch Produksi Baru";
+    const idInput = document.querySelector('#newBatchForm [name="batchId"]');
+    if (idInput) idInput.remove();
+
+    toast(isEdit ? "Batch produksi berhasil diubah." : "Batch produksi berhasil dibuat.");
     await refreshAll();
   } catch (err) {
-    toast("Gagal membuat batch: " + err.message);
+    toast("Gagal menyimpan batch: " + err.message);
   }
 });
 
 // Listen batch list clicks for updating progress, cancelling, and deleting
 const handleBatchClick = async (event) => {
   const editBtn = event.target.closest(".edit-progress-btn");
+  const editDetailBtn = event.target.closest(".edit-batch-detail-btn");
   const cancelBtn = event.target.closest(".cancel-batch-btn");
   const deleteBtn = event.target.closest(".delete-batch-btn");
   
-  if (editBtn) {
+  if (editDetailBtn) {
+    const id = Number(editDetailBtn.dataset.id);
+    const batch = currentProductionBatches.find(b => b.id === id);
+    if (batch) {
+      const data = await api("/api/options");
+      const uniqueProducts = [];
+      const seenIds = new Set();
+      data.variants.forEach(row => {
+        const isMaterial = row.category === "Bahan Baku" || (row.category === "Aksesoris" && row.sell_price === 0);
+        if (!isMaterial && !seenIds.has(row.product_id)) {
+          seenIds.add(row.product_id);
+          uniqueProducts.push(row);
+        }
+      });
+
+      // Pre-fill form fields
+      document.querySelector('#newBatchForm [name="batchNo"]').value = batch.batch_no;
+      document.querySelector('#newBatchForm [name="batchType"]').value = batch.batch_type;
+      document.querySelector('#newBatchForm [name="dueDate"]').value = batch.due_date;
+
+      // Set dialog title & ID
+      document.querySelector('#batchDialog h2').textContent = "Edit Batch Produksi";
+      let idInput = document.querySelector('#newBatchForm [name="batchId"]');
+      if (!idInput) {
+        idInput = document.createElement("input");
+        idInput.type = "hidden";
+        idInput.name = "batchId";
+        document.querySelector('#newBatchForm').appendChild(idInput);
+      }
+      idInput.value = batch.id;
+
+      const batchNoInput = document.querySelector('#newBatchForm [name="batchNo"]');
+      if (batchNoInput) {
+        batchNoInput.readOnly = false;
+        batchNoInput.style.background = "";
+        batchNoInput.style.cursor = "";
+      }
+
+      // Populate items
+      const container = document.querySelector("#batchItemRows");
+      container.innerHTML = "";
+      if (batch.items && batch.items.length) {
+        batch.items.forEach(item => {
+          addBatchItemRow(uniqueProducts);
+          const lastRow = container.lastElementChild;
+          lastRow.querySelector('[name="productId"]').value = item.product_id;
+          lastRow.querySelector('[name="qty"]').value = item.qty;
+          lastRow.querySelector('[name="productionCost"]').value = Math.round(item.production_cost / item.qty);
+        });
+      } else {
+        addBatchItemRow(uniqueProducts);
+      }
+
+      document.querySelector("#batchDialog").showModal();
+    }
+  } else if (editBtn) {
     const form = document.querySelector("#updateProgressForm");
     form.batchId.value = editBtn.dataset.id;
     document.querySelector("#progressBatchTitle").textContent = `Batch: ${editBtn.dataset.no}`;
@@ -2068,38 +2254,159 @@ async function loadCategoryStocks() {
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right;"><strong>${number.format(hangtag)} pcs</strong></td>
-      </tr>
-    `;
-    
     tbody.innerHTML = html;
   } catch (error) {
     console.error("Failed to load category stocks:", error);
   }
 }
 
-let aiChatHistory = [];
+let aiLoaded = false;
+let activeSessionId = null;
+
+async function populateAiMonthSelect() {
+  try {
+    const profits = await api("/api/profit-summary");
+    const select = document.querySelector("#aiAnalysisMonthSelect");
+    if (!select) return;
+    
+    const currentVal = select.value;
+    select.innerHTML = `<option value="">Laporan Terkini (Semua Bulan)</option>`;
+    
+    const months = [...new Set(profits.map(p => p.month))].sort().reverse();
+    months.forEach(m => {
+      select.innerHTML += `<option value="${m}">${monthName(m)}</option>`;
+    });
+    
+    select.value = currentVal;
+  } catch (err) {
+    console.error("Gagal memuat bulan analisis AI:", err);
+  }
+}
+
+async function loadAiSessions() {
+  try {
+    const sessions = await api("/api/ai/sessions");
+    const listEl = document.querySelector("#aiChatSessionsList");
+    if (!listEl) return;
+    
+    if (!sessions.length) {
+      listEl.innerHTML = `<div style="text-align: center; padding: 12px; color: var(--muted); font-size: 11px;">Belum ada riwayat.</div>`;
+      return;
+    }
+    
+    listEl.innerHTML = sessions.map(s => {
+      const isActive = s.id === activeSessionId;
+      const activeStyle = isActive ? "border-color: var(--accent); background: var(--soft-primary); font-weight: 700;" : "background: var(--bg); border-color: var(--line);";
+      return `
+        <div class="session-item" data-id="${s.id}" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 6px; cursor: pointer; border: 1px solid; font-size: 12px; transition: all 0.2s; ${activeStyle}">
+          <span class="session-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; margin-right: 8px;">${escapeHtml(s.title)}</span>
+          <button class="delete-session-btn" data-id="${s.id}" style="border: none; background: none; color: var(--muted); cursor: pointer; padding: 4px; font-size: 12px; line-height: 1;" type="button" title="Hapus sesi">🗑</button>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function selectAiSession(id) {
+  activeSessionId = id;
+  await loadAiSessions();
+  
+  const chatMessagesEl = document.querySelector("#aiChatMessages");
+  if (!chatMessagesEl) return;
+  
+  chatMessagesEl.innerHTML = `<div style="text-align:center; padding:24px; color:var(--muted);">Memuat pesan...</div>`;
+  
+  try {
+    const messages = await api(`/api/ai/sessions/${id}/messages`);
+    const title = document.querySelector(`.session-item[data-id="${id}"] .session-title`)?.textContent || "Chat Obrolan";
+    document.querySelector("#activeChatTitle").textContent = title;
+    
+    chatMessagesEl.innerHTML = "";
+    if (!messages.length) {
+      chatMessagesEl.innerHTML = `
+        <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+          Halo! Saya adalah Virtual COO dan Konsultan Bisnis Utama Anda untuk sesi ini. 
+          Tanyakan apa saja tentang data stok, kemasan, atau laporan keuangan TERA.
+        </div>
+      `;
+    } else {
+      messages.forEach(m => {
+        const isUser = m.role === "user";
+        const msgHtml = isUser ? `
+          <div class="user-message" style="background: var(--primary); color: var(--panel); padding: 10px 14px; border-radius: 8px 8px 0 8px; max-width: 85%; align-self: flex-end; font-size: 13px; line-height: 1.5;">
+            ${escapeHtml(m.message)}
+          </div>
+        ` : `
+          <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+            ${parseMarkdown(m.message)}
+          </div>
+        `;
+        chatMessagesEl.insertAdjacentHTML("beforeend", msgHtml);
+      });
+    }
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  } catch (err) {
+    chatMessagesEl.innerHTML = `<div style="color:var(--offline); text-align:center; padding:24px;">Gagal memuat pesan: ${err.message}</div>`;
+  }
+}
+
+async function startNewAiChat() {
+  try {
+    const session = await api("/api/ai/sessions", {
+      method: "POST",
+      body: JSON.stringify({ title: "Obrolan Baru" })
+    });
+    activeSessionId = session.id;
+    document.querySelector("#activeChatTitle").textContent = "Obrolan Baru";
+    await loadAiSessions();
+    await selectAiSession(session.id);
+  } catch (err) {
+    toast("Gagal membuat sesi baru: " + err.message);
+  }
+}
+
+async function deleteAiSession(id) {
+  if (!confirm("Apakah Anda yakin ingin menghapus sesi obrolan ini?")) return;
+  try {
+    await api(`/api/ai/sessions/${id}`, { method: "DELETE" });
+    if (activeSessionId === id) {
+      activeSessionId = null;
+      const chatMessagesEl = document.querySelector("#aiChatMessages");
+      if (chatMessagesEl) {
+        chatMessagesEl.innerHTML = `
+          <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+            Pilih obrolan dari riwayat di sebelah kiri atau buat obrolan baru untuk memulai.
+          </div>
+        `;
+      }
+      document.querySelector("#activeChatTitle").textContent = "Konsultan Bisnis AI (Virtual COO)";
+    }
+    await loadAiSessions();
+  } catch (err) {
+    toast("Gagal menghapus sesi: " + err.message);
+  }
+}
 
 async function loadAiConsultant() {
-  // Clear chat window except for the initial message
+  if (aiLoaded) return;
+
+  await populateAiMonthSelect();
+  await loadAiSessions();
+  
   const chatMessagesEl = document.querySelector("#aiChatMessages");
-  if (chatMessagesEl) {
+  if (chatMessagesEl && !activeSessionId) {
     chatMessagesEl.innerHTML = `
       <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
-        Halo! Saya adalah Virtual COO dan Konsultan Bisnis Utama Anda. 
-        Saya menguasai data stok pakaian, inventori kemasan, dan laporan keuangan toko Anda.
-        Tanyakan apa saja, seperti:
-        <ul style="margin: 8px 0 0 16px; padding: 0; list-style-type: disc;">
-          <li>Bagaimana analisis laba rugi saya bulan ini?</li>
-          <li>Produk apa yang margin keuntungannya paling tinggi untuk di-branding?</li>
-          <li>Apakah ada stok kemasan atau hangtag yang perlu saya order sekarang?</li>
-        </ul>
+        Pilih obrolan dari riwayat di sebelah kiri atau klik "＋ Obrolan Baru" untuk memulai konsultasi bisnis AI dengan Virtual COO TERA.
       </div>
     `;
-    aiChatHistory = [];
+    document.querySelector("#activeChatTitle").textContent = "Konsultan Bisnis AI (Virtual COO)";
   }
-
-  // Load proactive insights automatically
+  
   await loadAiInsights();
+  aiLoaded = true;
 }
 
 async function loadAiInsights() {
@@ -2114,30 +2421,27 @@ async function loadAiInsights() {
   `;
 
   try {
-    const data = await api("/api/ai/insights");
+    const monthVal = document.querySelector("#aiAnalysisMonthSelect")?.value || "";
+    const data = await api(`/api/ai/insights?month=${encodeURIComponent(monthVal)}`);
     if (data.insights) {
-      // Parse markdown bold text and bullets to simple HTML
       let html = "";
       const lines = data.insights.split("\n");
       lines.forEach(line => {
         const trimmed = line.trim();
         if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
           let text = trimmed.substring(2);
-          
-          // Simple markdown bold replacement: **text** -> <strong>text</strong>
           text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-          // Determine card style based on category
           let borderLeftColor = "var(--primary)";
           let icon = "💡";
           if (text.includes("[Stok]")) {
-            borderLeftColor = "#f59e0b"; // amber
+            borderLeftColor = "#f59e0b";
             icon = "📦";
           } else if (text.includes("[Keuangan]")) {
-            borderLeftColor = "#10b981"; // emerald
+            borderLeftColor = "#10b981";
             icon = "💰";
           } else if (text.includes("[Pemasaran & Branding]") || text.includes("[Pemasaran]") || text.includes("[Branding]")) {
-            borderLeftColor = "#6366f1"; // indigo
+            borderLeftColor = "#6366f1";
             icon = "📢";
           }
 
@@ -2184,7 +2488,23 @@ async function sendAiChatMessage() {
   const userText = inputEl.value.trim();
   inputEl.value = "";
 
-  // Append user message to UI
+  if (!activeSessionId) {
+    try {
+      const title = userText.substring(0, 30) + (userText.length > 30 ? "..." : "");
+      const session = await api("/api/ai/sessions", {
+        method: "POST",
+        body: JSON.stringify({ title })
+      });
+      activeSessionId = session.id;
+      document.querySelector("#activeChatTitle").textContent = title;
+      chatMessagesEl.innerHTML = "";
+      await loadAiSessions();
+    } catch (err) {
+      toast("Gagal membuat obrolan baru: " + err.message);
+      return;
+    }
+  }
+
   const userMsgHtml = `
     <div class="user-message" style="background: var(--primary); color: var(--panel); padding: 10px 14px; border-radius: 8px 8px 0 8px; max-width: 85%; align-self: flex-end; font-size: 13px; line-height: 1.5;">
       ${escapeHtml(userText)}
@@ -2193,14 +2513,12 @@ async function sendAiChatMessage() {
   chatMessagesEl.insertAdjacentHTML("beforeend", userMsgHtml);
   chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 
-  // Disable input & button during processing
   inputEl.disabled = true;
   if (sendBtn) {
     sendBtn.disabled = true;
     sendBtn.textContent = "...";
   }
 
-  // Add typing indicator
   const typingId = "typing-" + Date.now();
   const typingHtml = `
     <div id="${typingId}" class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary); display: flex; align-items: center; gap: 4px;">
@@ -2217,11 +2535,10 @@ async function sendAiChatMessage() {
       method: "POST",
       body: JSON.stringify({
         message: userText,
-        history: aiChatHistory
+        sessionId: activeSessionId
       })
     });
 
-    // Remove typing indicator
     const typingIndicator = document.getElementById(typingId);
     if (typingIndicator) typingIndicator.remove();
 
@@ -2235,15 +2552,6 @@ async function sendAiChatMessage() {
       `;
       chatMessagesEl.insertAdjacentHTML("beforeend", aiMsgHtml);
       chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
-
-      // Update history
-      aiChatHistory.push({ role: "user", text: userText });
-      aiChatHistory.push({ role: "model", text: data.response });
-
-      // Cap history size to prevent huge payload over time
-      if (aiChatHistory.length > 20) {
-        aiChatHistory = aiChatHistory.slice(-20);
-      }
     } else {
       throw new Error("Respons AI kosong");
     }
@@ -2327,5 +2635,26 @@ document.querySelector("#sendAiChatBtn")?.addEventListener("click", () => {
 document.querySelector("#aiChatInput")?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     sendAiChatMessage().catch(e => console.error(e));
+  }
+});
+
+document.querySelector("#newAiChatBtn")?.addEventListener("click", () => {
+  startNewAiChat().catch(e => console.error(e));
+});
+
+document.querySelector("#aiAnalysisMonthSelect")?.addEventListener("change", () => {
+  loadAiInsights().catch(e => console.error(e));
+});
+
+document.querySelector("#aiChatSessionsList")?.addEventListener("click", (e) => {
+  const deleteBtn = e.target.closest(".delete-session-btn");
+  const sessionItem = e.target.closest(".session-item");
+  if (deleteBtn) {
+    e.stopPropagation();
+    const id = Number(deleteBtn.dataset.id);
+    deleteAiSession(id).catch(e => console.error(e));
+  } else if (sessionItem) {
+    const id = Number(sessionItem.dataset.id);
+    selectAiSession(id).catch(e => console.error(e));
   }
 });

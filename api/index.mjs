@@ -251,6 +251,19 @@ async function initDb() {
       unit TEXT NOT NULL,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
+    CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ai_chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE
+    );
   `);
 
   if (dropPoItems) {
@@ -1027,6 +1040,15 @@ async function callGemini(systemInstruction, userMessage, history = []) {
     throw new Error("GEMINI_API_KEY_MISSING");
   }
 
+  if (apiKey === "mock_api_key") {
+    if (systemInstruction.includes("insights")) {
+      return `* **[Stok]**: Stok Packaging Baju menipis.
+* **[Keuangan]**: Laba operasional stabil.
+* **[Pemasaran & Branding]**: Fokus branding T-Shirt.`;
+    }
+    return `Ini adalah respons simulasi dari Virtual COO untuk pesan: "${userMessage}".`;
+  }
+
   const contents = [];
   for (const h of history) {
     contents.push({
@@ -1174,7 +1196,7 @@ async function api(req, res) {
     }
   }
 
-  if (req.method === "PUT" && url.pathname.startsWith("/api/production/batches/")) {
+  if (req.method === "PUT" && url.pathname.startsWith("/api/production/batches/") && !url.pathname.endsWith("/details")) {
     const id = Number(url.pathname.split("/").at(-1));
     const body = await readJson(req);
     const cutting = Number(body.cuttingProgress ?? 0);
@@ -1215,6 +1237,113 @@ async function api(req, res) {
             }
           }
         }
+      }
+
+      await db.exec("COMMIT");
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "PUT" && url.pathname.startsWith("/api/production/batches/") && url.pathname.endsWith("/details")) {
+    const parts = url.pathname.split("/");
+    const id = Number(parts[parts.length - 2]);
+    const body = await readJson(req);
+    await db.exec("BEGIN");
+    try {
+      const batch = await db.prepare("SELECT * FROM production_batches WHERE id = ?").get(id);
+      if (!batch) {
+        await db.exec("ROLLBACK");
+        return json(res, 404, { error: "Batch tidak ditemukan" });
+      }
+
+      const oldBatchNo = batch.batch_no;
+      const oldStatus = batch.status;
+      const oldCreatedAt = batch.created_at;
+      const oldCompletedAt = batch.completed_at;
+
+      // 1. Stock non-negative validation
+      const netChanges = {};
+      if (oldStatus === "Selesai") {
+        const oldItems = await db.prepare("SELECT product_id, qty FROM production_batch_items WHERE batch_id = ?").all(id);
+        for (const item of oldItems) {
+          const variants = await db.prepare("SELECT id FROM variants WHERE product_id = ?").all(item.product_id);
+          if (variants.length > 0) {
+            const baseQty = Math.floor(item.qty / variants.length);
+            const remainder = item.qty % variants.length;
+            for (let i = 0; i < variants.length; i++) {
+              const variantId = variants[i].id;
+              const subQty = baseQty + (i === 0 ? remainder : 0);
+              netChanges[variantId] = (netChanges[variantId] || 0) - subQty;
+            }
+          }
+        }
+        for (const item of body.items) {
+          const variants = await db.prepare("SELECT id FROM variants WHERE product_id = ?").all(item.productId);
+          if (variants.length > 0) {
+            const baseQty = Math.floor(item.qty / variants.length);
+            const remainder = item.qty % variants.length;
+            for (let i = 0; i < variants.length; i++) {
+              const variantId = variants[i].id;
+              const addQty = baseQty + (i === 0 ? remainder : 0);
+              netChanges[variantId] = (netChanges[variantId] || 0) + addQty;
+            }
+          }
+        }
+      }
+
+      for (const [variantId, change] of Object.entries(netChanges)) {
+        if (change < 0) {
+          const bal = await db.prepare("SELECT qty FROM inventory_balances WHERE variant_id = ? AND pool_id = 2").get(Number(variantId));
+          const currentQty = bal ? bal.qty : 0;
+          if (currentQty + change < 0) {
+            const variantInfo = await db.prepare("SELECT p.name, v.size, v.color FROM variants v JOIN products p ON p.id = v.product_id WHERE v.id = ?").get(Number(variantId));
+            const name = variantInfo ? `${variantInfo.name} (${variantInfo.size}/${variantInfo.color})` : `Variant #${variantId}`;
+            await db.exec("ROLLBACK");
+            return json(res, 400, { error: `Stok tidak mencukupi untuk melakukan penyesuaian produksi. Stok ${name} di gudang offline akan menjadi negatif (${currentQty + change}).` });
+          }
+        }
+      }
+
+      // 2. Apply stock changes using netChanges
+      if (oldStatus === "Selesai") {
+        const dateToUse = oldCompletedAt || new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().replace("T", " ").slice(0, 19);
+        for (const [variantId, change] of Object.entries(netChanges)) {
+          if (change !== 0) {
+            await changeStock(Number(variantId), 2, change, "Production Edit Adjustment", `Penyesuaian Batch: ${body.batchNo}`, dateToUse);
+          }
+        }
+      }
+
+      // 3. Update production batch details
+      await db.prepare("UPDATE production_batches SET batch_no = ?, batch_type = ?, due_date = ? WHERE id = ?")
+        .run(body.batchNo, body.batchType, body.dueDate, id);
+
+      // 4. Delete and insert new items
+      await db.prepare("DELETE FROM production_batch_items WHERE batch_id = ?").run(id);
+      const itemStmt = await db.prepare(`
+        INSERT INTO production_batch_items (batch_id, product_id, qty, production_cost)
+        VALUES (?, ?, ?, ?)
+      `);
+      let newTotalCost = 0;
+      for (const item of body.items) {
+        const itemQty = Number(item.qty || 0);
+        const unitCost = Number(item.productionCost || 0);
+        const itemTotalCost = itemQty * unitCost;
+        newTotalCost += itemTotalCost;
+        await itemStmt.run(id, Number(item.productId), itemQty, itemTotalCost);
+      }
+
+      // 6. Update monthly expense
+      await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${oldBatchNo}%`);
+      if (oldStatus !== "Dibatalkan") {
+        const batchMonth = oldCreatedAt ? oldCreatedAt.substring(0, 7) : new Date().toISOString().substring(0, 7);
+        await db.prepare(`
+          INSERT INTO monthly_expenses (month, category, amount, note)
+          VALUES (?, ?, ?, ?)
+        `).run(batchMonth, "Produksi", newTotalCost, `Produksi: ${body.batchNo}`);
       }
 
       await db.exec("COMMIT");
@@ -1276,7 +1405,7 @@ async function api(req, res) {
     return json(res, 200, rows);
   }
 
-  if (req.method === "PUT" && url.pathname.startsWith("/api/purchase-orders/")) {
+  if (req.method === "PUT" && url.pathname.startsWith("/api/purchase-orders/") && !url.pathname.endsWith("/details")) {
     const id = Number(url.pathname.split("/").pop());
     const body = await readJson(req);
     const status = String(body.status);
@@ -1311,6 +1440,112 @@ async function api(req, res) {
         await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`PO: ${po.po_no}%`);
       }
       
+      await db.exec("COMMIT");
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "PUT" && url.pathname.startsWith("/api/purchase-orders/") && url.pathname.endsWith("/details")) {
+    const parts = url.pathname.split("/");
+    const id = Number(parts[parts.length - 2]);
+    const body = await readJson(req);
+    await db.exec("BEGIN");
+    try {
+      const po = await db.prepare("SELECT * FROM purchase_orders WHERE id = ?").get(id);
+      if (!po) {
+        await db.exec("ROLLBACK");
+        return json(res, 404, { error: "PO tidak ditemukan" });
+      }
+
+      const oldPoNo = po.po_no;
+      const oldStatus = po.status;
+      const oldCreatedAt = po.created_at;
+
+      // 1. Stock non-negative validation for auxiliary stock
+      const netAuxChanges = {};
+      if (oldStatus === "Selesai") {
+        const oldItems = await db.prepare("SELECT material_name, qty FROM purchase_order_items WHERE purchase_order_id = ?").all(id);
+        for (const item of oldItems) {
+          const mName = item.material_name.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            netAuxChanges[mName] = (netAuxChanges[mName] || 0) - item.qty;
+          }
+        }
+      }
+      if (body.status === "Selesai") {
+        for (const item of body.items) {
+          const mName = item.materialName.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            netAuxChanges[mName] = (netAuxChanges[mName] || 0) + item.qty;
+          }
+        }
+      }
+
+      for (const [mName, change] of Object.entries(netAuxChanges)) {
+        if (change < 0) {
+          const bal = await db.prepare("SELECT qty FROM auxiliary_balances WHERE name = ?").get(mName);
+          const currentQty = bal ? bal.qty : 0;
+          if (currentQty + change < 0) {
+            await db.exec("ROLLBACK");
+            return json(res, 400, { error: `Stok bahan pembantu tidak mencukupi untuk melakukan penyesuaian PO. Stok ${mName} akan menjadi negatif (${currentQty + change}).` });
+          }
+        }
+      }
+
+      // 2. Revert old auxiliary balances if old status was Selesai
+      if (oldStatus === "Selesai") {
+        const oldItems = await db.prepare("SELECT material_name, qty FROM purchase_order_items WHERE purchase_order_id = ?").all(id);
+        for (const item of oldItems) {
+          const mName = item.material_name.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty - ? WHERE name = ?").run(item.qty, mName);
+          }
+        }
+      }
+
+      // 3. Update purchase order details
+      await db.prepare("UPDATE purchase_orders SET po_no = ?, supplier_id = ?, pool_id = ?, status = ? WHERE id = ?")
+        .run(body.poNo, body.supplierId, body.poolId, body.status, id);
+
+      // 4. Delete and insert new items
+      await db.prepare("DELETE FROM purchase_order_items WHERE purchase_order_id = ?").run(id);
+      const poiStmt = await db.prepare(`
+        INSERT INTO purchase_order_items (purchase_order_id, category, material_name, qty, cost_price)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      let newTotalAmount = 0;
+      for (const item of body.items) {
+        const qty = Number(item.qty || 0);
+        const cost = Number(item.costPrice || 0);
+        newTotalAmount += qty * cost;
+        await poiStmt.run(id, item.category, item.materialName, qty, cost);
+      }
+
+      // 5. Apply new auxiliary balances if new status is Selesai
+      if (body.status === "Selesai") {
+        for (const item of body.items) {
+          const mName = item.materialName.trim();
+          if (["Packaging Baju", "Packaging Order", "Hangtag"].includes(mName)) {
+            await db.prepare("UPDATE auxiliary_balances SET qty = qty + ? WHERE name = ?").run(item.qty, mName);
+          }
+        }
+      }
+
+      // 6. Update monthly expense
+      await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`PO: ${oldPoNo}%`);
+      if (body.status !== "Dibatalkan") {
+        const poMonth = oldCreatedAt ? oldCreatedAt.substring(0, 7) : new Date().toISOString().substring(0, 7);
+        const supplier = await db.prepare("SELECT name FROM suppliers WHERE id = ?").get(body.supplierId);
+        const supplierName = supplier ? supplier.name : "";
+        await db.prepare(`
+          INSERT INTO monthly_expenses (month, category, amount, note)
+          VALUES (?, ?, ?, ?)
+        `).run(poMonth, "Purchase Order", newTotalAmount, `PO: ${body.poNo} (${supplierName})`);
+      }
+
       await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
@@ -1784,7 +2019,9 @@ async function api(req, res) {
         "users",
         "production_batch_items",
         "production_batches",
-        "bill_of_materials"
+        "bill_of_materials",
+        "ai_chat_messages",
+        "ai_chat_sessions"
       ];
       for (const table of tables) {
         await db.prepare(`DELETE FROM ${table}`).run();
@@ -1827,13 +2064,22 @@ async function api(req, res) {
       });
     }
     try {
+      const selectedMonth = url.searchParams.get("month");
       const context = await getAiContext();
+      
+      let financialsToSend = context.financials;
+      let monthFocusPrompt = "";
+      if (selectedMonth) {
+        financialsToSend = context.financials.filter(f => f.month === selectedMonth);
+        monthFocusPrompt = `\nFokus analisis Anda adalah khusus untuk bulan laporan keuangan: ${selectedMonth}.`;
+      }
+
       const systemInstruction = `
 You are the Chief Business Consultant and Virtual COO for TERA, a premium clothing brand. You speak Indonesian.
 Analyze the provided real-time business data:
 1. stocks: List of clothing products and their variant quantities.
 2. auxiliary: Quantities of Packaging Baju, Packaging Order, and Hangtag.
-3. financials: Monthly Income Statement and Cash Budget reports.
+3. financials: Monthly Income Statement and Cash Budget reports.${monthFocusPrompt}
 
 Generate exactly 3 bullet points of proactive, practical insights (rekomendasi pintar). Use Markdown format.
 The output format must be EXACTLY like this:
@@ -1846,7 +2092,7 @@ Do not write any intro or outro, just return the 3 bullet points. Be specific ab
       const userMessage = `Here is the current business state:
 Stocks: ${JSON.stringify(context.stocks)}
 Auxiliary: ${JSON.stringify(context.auxiliary)}
-Financial Reports: ${JSON.stringify(context.financials)}`;
+Financial Reports: ${JSON.stringify(financialsToSend)}`;
 
       const text = await callGemini(systemInstruction, userMessage);
       return json(res, 200, { insights: text });
@@ -1882,8 +2128,75 @@ Always relate your answers to the actual numbers and products (like 'Tera Premiu
 Keep your answers highly practical, actionable, and structured using markdown. Keep responses concise but comprehensive.
 `;
 
-      const text = await callGemini(systemInstruction, body.message, body.history || []);
+      let history = [];
+      if (body.sessionId) {
+        // Save user message in DB
+        await db.prepare("INSERT INTO ai_chat_messages (session_id, role, message) VALUES (?, 'user', ?)")
+          .run(body.sessionId, body.message);
+        
+        // Fetch history
+        const rows = await db.prepare("SELECT role, message FROM ai_chat_messages WHERE session_id = ? ORDER BY id ASC")
+          .all(body.sessionId);
+        
+        // Use history before the last inserted user message
+        history = rows.slice(0, -1).map(r => ({
+          role: r.role === "user" ? "user" : "model",
+          text: r.message
+        }));
+      } else {
+        history = body.history || [];
+      }
+
+      const text = await callGemini(systemInstruction, body.message, history);
+
+      if (body.sessionId) {
+        // Save AI response in DB
+        await db.prepare("INSERT INTO ai_chat_messages (session_id, role, message) VALUES (?, 'model', ?)")
+          .run(body.sessionId, text);
+      }
+
       return json(res, 200, { response: text });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/ai/sessions") {
+    try {
+      const rows = await db.prepare("SELECT * FROM ai_chat_sessions ORDER BY id DESC").all();
+      return json(res, 200, rows);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/ai/sessions") {
+    try {
+      const body = await readJson(req);
+      const title = String(body.title || "Chat Baru").trim();
+      const result = await db.prepare("INSERT INTO ai_chat_sessions (title) VALUES (?)").run(title);
+      return json(res, 201, { id: Number(result.lastInsertRowid), title });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/api/ai/sessions/") && url.pathname.endsWith("/messages")) {
+    const parts = url.pathname.split("/");
+    const sessionId = Number(parts[parts.length - 2]);
+    try {
+      const rows = await db.prepare("SELECT * FROM ai_chat_messages WHERE session_id = ? ORDER BY id ASC").all(sessionId);
+      return json(res, 200, rows);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/ai/sessions/")) {
+    const id = Number(url.pathname.split("/").pop());
+    try {
+      await db.prepare("DELETE FROM ai_chat_sessions WHERE id = ?").run(id);
+      return json(res, 200, { ok: true });
     } catch (error) {
       return json(res, 500, { error: error.message });
     }
