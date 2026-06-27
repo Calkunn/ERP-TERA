@@ -1339,7 +1339,7 @@ async function api(req, res) {
       // 6. Update monthly expense
       await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`Produksi: ${oldBatchNo}%`);
       if (oldStatus !== "Dibatalkan") {
-        const batchMonth = oldCreatedAt ? oldCreatedAt.substring(0, 7) : new Date().toISOString().substring(0, 7);
+        const batchMonth = oldCreatedAt ? (oldCreatedAt instanceof Date ? oldCreatedAt.toISOString() : String(oldCreatedAt)).substring(0, 7) : new Date().toISOString().substring(0, 7);
         await db.prepare(`
           INSERT INTO monthly_expenses (month, category, amount, note)
           VALUES (?, ?, ?, ?)
@@ -1537,7 +1537,7 @@ async function api(req, res) {
       // 6. Update monthly expense
       await db.prepare("DELETE FROM monthly_expenses WHERE note LIKE ?").run(`PO: ${oldPoNo}%`);
       if (body.status !== "Dibatalkan") {
-        const poMonth = oldCreatedAt ? oldCreatedAt.substring(0, 7) : new Date().toISOString().substring(0, 7);
+        const poMonth = oldCreatedAt ? (oldCreatedAt instanceof Date ? oldCreatedAt.toISOString() : String(oldCreatedAt)).substring(0, 7) : new Date().toISOString().substring(0, 7);
         const supplier = await db.prepare("SELECT name FROM suppliers WHERE id = ?").get(body.supplierId);
         const supplierName = supplier ? supplier.name : "";
         await db.prepare(`
