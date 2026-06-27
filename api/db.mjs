@@ -26,6 +26,7 @@ export const pool = connectionString ? new pg.Pool({
 function translateSql(sql) {
   let index = 1;
   let translated = sql.replace(/\?/g, () => `$${index++}`);
+  translated = translated.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/gi, "SERIAL PRIMARY KEY");
   
   if (/DELETE FROM sqlite_sequence/i.test(translated)) {
     return `
@@ -49,7 +50,7 @@ class Statement {
     this.originalSql = sql;
     this.isSqlite = isSqlite;
     this.sql = isSqlite ? sql : translateSql(sql);
-    this.isMock = !isSqlite && (/PRAGMA/i.test(sql) || (/CREATE TABLE/i.test(sql) && !/auxiliary_balances/i.test(sql)) || /DROP TABLE/i.test(sql));
+    this.isMock = !isSqlite && (/PRAGMA/i.test(sql) || (/CREATE TABLE/i.test(sql) && !/auxiliary_balances|ai_chat_sessions|ai_chat_messages/i.test(sql)) || /DROP TABLE/i.test(sql));
   }
 
   async run(...args) {
@@ -112,7 +113,7 @@ class RequestDb {
     if (this.isSqlite) {
       this.client.exec(sql);
     } else {
-      if (/PRAGMA/i.test(sql) || (/CREATE TABLE/i.test(sql) && !/auxiliary_balances/i.test(sql)) || /DROP TABLE/i.test(sql)) {
+      if (/PRAGMA/i.test(sql) || (/CREATE TABLE/i.test(sql) && !/auxiliary_balances|ai_chat_sessions|ai_chat_messages/i.test(sql)) || /DROP TABLE/i.test(sql)) {
         return;
       }
       await this.client.query(sql);
