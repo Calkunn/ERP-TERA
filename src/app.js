@@ -2226,11 +2226,7 @@ async function sendAiChatMessage() {
     if (typingIndicator) typingIndicator.remove();
 
     if (data.response) {
-      // Simple markdown parser to HTML for bullet points and bold text
-      let parsedResponse = data.response
-        .replace(/\n/g, "<br/>")
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*(.*?)\*/g, "<em>$1</em>");
+      let parsedResponse = parseMarkdown(data.response);
 
       const aiMsgHtml = `
         <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
@@ -2275,6 +2271,39 @@ async function sendAiChatMessage() {
     }
     inputEl.focus();
   }
+}
+
+function parseMarkdown(text) {
+  let html = escapeHtml(text);
+
+  // Parse headers: ### header, ## header, # header
+  html = html.replace(/^### (.*?)$/gm, '<h3 style="margin-top: 12px; margin-bottom: 6px; font-size: 14px; font-weight: 700; color: var(--ink);">$1</h3>');
+  html = html.replace(/^## (.*?)$/gm, '<h2 style="margin-top: 16px; margin-bottom: 8px; font-size: 16px; font-weight: 700; color: var(--ink);">$1</h2>');
+  html = html.replace(/^# (.*?)$/gm, '<h1 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px; font-weight: 700; color: var(--ink);">$1</h1>');
+
+  // Parse bold: **text**
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Parse italic: *text* or _text_
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+
+  // Parse bullet list items: - item or * item
+  html = html.replace(/^[-*] (.*?)$/gm, '<li style="margin-left: 16px; margin-bottom: 4px; list-style-type: disc; display: list-item;">$1</li>');
+
+  // Parse numbered list items: 1. item or 2. item
+  html = html.replace(/^(\d+)\. (.*?)$/gm, '<li style="margin-left: 16px; margin-bottom: 4px; list-style-type: decimal; display: list-item;">$2</li>');
+
+  // Replace remaining newlines with <br/>
+  html = html.replace(/\n/g, '<br/>');
+
+  // Cleanup: do not put duplicate <br/> before/after block elements to prevent large empty spaces
+  html = html.replace(/(<\/h\d>)<br\/>/g, '$1');
+  html = html.replace(/(<\/li>)<br\/>/g, '$1');
+  html = html.replace(/<br\/>(<li>)/g, '$1');
+  html = html.replace(/<br\/>(<h\d>)/g, '$1');
+
+  return html;
 }
 
 function escapeHtml(text) {
