@@ -116,7 +116,7 @@ class RequestDb {
       if (/PRAGMA/i.test(sql) || (/CREATE TABLE/i.test(sql) && !/auxiliary_balances|ai_chat_sessions|ai_chat_messages/i.test(sql)) || /DROP TABLE/i.test(sql)) {
         return;
       }
-      await this.client.query(sql);
+      await this.client.query(translateSql(sql));
     }
   }
 
