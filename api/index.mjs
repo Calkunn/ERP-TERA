@@ -1005,7 +1005,7 @@ async function getAiContext() {
     FROM inventory_balances ib
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
-    GROUP BY v.id
+    GROUP BY p.name, p.category, v.sku, v.size, v.color, v.low_stock
   `).all();
 
   const auxiliaryList = await db.prepare(`
