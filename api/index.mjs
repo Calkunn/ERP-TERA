@@ -251,6 +251,9 @@ async function initDb() {
       unit TEXT NOT NULL,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
+  `);
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS ai_chat_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
