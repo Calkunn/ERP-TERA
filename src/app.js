@@ -1913,8 +1913,8 @@ function renderIncomeStatement(data) {
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.grossSales)} <span class="formula-note" style="text-align:right;">(${m.qtySold} × ${rupiah.format(m.avgPrice)})</span></td>`).join("")}
     </tr>
     <tr>
-      <td>Dikurang komisi <span class="formula-note">(36%)</span></td>
-      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.komisi)} <span class="formula-note" style="text-align:right; color:#ef4444;">-36%</span></td>`).join("")}
+      <td>Dikurang komisi <span class="formula-note">(36% Offline)</span></td>
+      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.komisi)} <span class="formula-note" style="text-align:right; color:#ef4444;">-36% Off</span></td>`).join("")}
     </tr>
     <tr class="total-row">
       <td>Total Revenue</td>

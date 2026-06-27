@@ -933,7 +933,7 @@ async function calculateKeuanganReports() {
       continue;
     }
 
-    const komisi = Math.round(grossSales * 0.36);
+    const komisi = Math.round(rev.offline_revenue * 0.36);
     const totalRevenue = grossSales - komisi;
     const cogs = cogsMap.get(m) || 0;
     const operatingIncome = totalRevenue - cogs;
