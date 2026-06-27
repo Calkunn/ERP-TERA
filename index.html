@@ -849,16 +849,25 @@
         <div class="stack">
           <h3 id="progressBatchTitle" style="margin: 0 0 10px;">Batch</h3>
           <div>
-            <label style="font-size:12px; font-weight:700;">Cutting Progress (%)</label>
-            <input name="cuttingProgress" type="number" min="0" max="100" required>
+            <label style="font-size:12px; font-weight:700; display: flex; justify-content: space-between;">
+              <span>Cutting Progress</span>
+              <span id="cuttingVal">0%</span>
+            </label>
+            <input name="cuttingProgress" type="range" min="0" max="100" value="0" style="width: 100%; margin: 8px 0;" oninput="document.getElementById('cuttingVal').textContent = this.value + '%'">
           </div>
           <div>
-            <label style="font-size:12px; font-weight:700;">Sewing Progress (%)</label>
-            <input name="sewingProgress" type="number" min="0" max="100" required>
+            <label style="font-size:12px; font-weight:700; display: flex; justify-content: space-between;">
+              <span>Sewing Progress</span>
+              <span id="sewingVal">0%</span>
+            </label>
+            <input name="sewingProgress" type="range" min="0" max="100" value="0" style="width: 100%; margin: 8px 0;" oninput="document.getElementById('sewingVal').textContent = this.value + '%'">
           </div>
           <div>
-            <label style="font-size:12px; font-weight:700;">Finishing Progress (%)</label>
-            <input name="finishingProgress" type="number" min="0" max="100" required>
+            <label style="font-size:12px; font-weight:700; display: flex; justify-content: space-between;">
+              <span>Finishing Progress</span>
+              <span id="finishingVal">0%</span>
+            </label>
+            <input name="finishingProgress" type="range" min="0" max="100" value="0" style="width: 100%; margin: 8px 0;" oninput="document.getElementById('finishingVal').textContent = this.value + '%'">
           </div>
           <div>
             <label style="font-size:12px; font-weight:700;">Tanggal Selesai (Diperlukan jika semua progress 100%)</label>

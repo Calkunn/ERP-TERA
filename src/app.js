@@ -1590,6 +1590,11 @@ const handleBatchClick = async (event) => {
     form.sewingProgress.value = editBtn.dataset.sewing;
     form.finishingProgress.value = editBtn.dataset.finishing;
     
+    // Set text display for sliders
+    document.getElementById('cuttingVal').textContent = `${editBtn.dataset.cutting}%`;
+    document.getElementById('sewingVal').textContent = `${editBtn.dataset.sewing}%`;
+    document.getElementById('finishingVal').textContent = `${editBtn.dataset.finishing}%`;
+    
     // Set completedAt to current local time in YYYY-MM-DDTHH:MM format
     const now = new Date();
     const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -2254,6 +2259,8 @@ async function loadCategoryStocks() {
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right;"><strong>${number.format(hangtag)} pcs</strong></td>
+      </tr>
+    `;
     tbody.innerHTML = html;
   } catch (error) {
     console.error("Failed to load category stocks:", error);
@@ -2397,12 +2404,22 @@ async function loadAiConsultant() {
   
   const chatMessagesEl = document.querySelector("#aiChatMessages");
   if (chatMessagesEl && !activeSessionId) {
-    chatMessagesEl.innerHTML = `
-      <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
-        Pilih obrolan dari riwayat di sebelah kiri atau klik "＋ Obrolan Baru" untuk memulai konsultasi bisnis AI dengan Virtual COO TERA.
-      </div>
-    `;
-    document.querySelector("#activeChatTitle").textContent = "Konsultan Bisnis AI (Virtual COO)";
+    try {
+      const sessions = await api("/api/ai/sessions");
+      if (sessions && sessions.length > 0) {
+        activeSessionId = sessions[0].id;
+        await selectAiSession(activeSessionId);
+      } else {
+        chatMessagesEl.innerHTML = `
+          <div class="ai-message" style="background: var(--soft-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 85%; align-self: flex-start; border: 1px solid var(--soft-secondary);">
+            Pilih obrolan dari riwayat di sebelah kiri atau klik "＋ Obrolan Baru" untuk memulai konsultasi bisnis AI dengan Virtual COO TERA.
+          </div>
+        `;
+        document.querySelector("#activeChatTitle").textContent = "Konsultan Bisnis AI (Virtual COO)";
+      }
+    } catch (err) {
+      console.error("Gagal memuat sesi chat awal:", err);
+    }
   }
   
   await loadAiInsights();
