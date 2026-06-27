@@ -2186,7 +2186,7 @@ async function sendAiChatMessage() {
 
   // Append user message to UI
   const userMsgHtml = `
-    <div class="user-message" style="background: var(--primary); color: white; padding: 10px 14px; border-radius: 8px 8px 0 8px; max-width: 85%; align-self: flex-end; font-size: 13px; line-height: 1.5;">
+    <div class="user-message" style="background: var(--primary); color: var(--panel); padding: 10px 14px; border-radius: 8px 8px 0 8px; max-width: 85%; align-self: flex-end; font-size: 13px; line-height: 1.5;">
       ${escapeHtml(userText)}
     </div>
   `;
