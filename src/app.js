@@ -390,19 +390,140 @@ async function loadDashboard() {
 async function loadProducts() {
   const rows = await api("/api/products");
   productRows = rows;
-  table("#productsTable", [
-    { label: "", render: (r) => `<button class="mini open-product" data-id="${r.variant_id}" type="button" title="Buka artikel">✎ Detail</button>` },
-    { label: "SKU", key: "sku" },
-    { label: "Artikel", key: "name" },
-    { label: "Kategori", key: "category" },
-    { label: "Size", key: "size" },
-    { label: "Warna", key: "color" },
-    { label: "HPP", render: (r) => rupiah.format(r.cost_price) },
-    { label: "Harga Jual", render: (r) => rupiah.format(r.sell_price) },
-    { label: "Online", render: (r) => number.format(r.online_qty) },
-    { label: "Offline", render: (r) => number.format(r.offline_qty) },
-    { label: "Total", render: (r) => `<strong>${number.format(r.total_qty)}</strong>` }
-  ], rows);
+
+  const tableEl = document.querySelector("#productsTable");
+  if (!tableEl) return;
+
+  // Group by product_id
+  const groups = {};
+  rows.forEach(r => {
+    if (!groups[r.product_id]) {
+      groups[r.product_id] = {
+        product_id: r.product_id,
+        name: r.name,
+        category: r.category,
+        variants: []
+      };
+    }
+    groups[r.product_id].variants.push(r);
+  });
+
+  const columns = [
+    { label: "", width: "50px" }, // Expand / collapse indicator
+    { label: "SKU" },
+    { label: "Artikel" },
+    { label: "Kategori" },
+    { label: "Size" },
+    { label: "Warna" },
+    { label: "HPP" },
+    { label: "Harga Jual" },
+    { label: "Online" },
+    { label: "Offline" },
+    { label: "Total" }
+  ];
+
+  let thead = `<thead><tr>${columns.map((c) => `<th style="${c.width ? `width:${c.width};` : ''}">${c.label}</th>`).join("")}</tr></thead>`;
+  let tbodyHtml = "";
+
+  if (rows.length === 0) {
+    tbodyHtml = `<tbody><tr><td colspan="${columns.length}">Belum ada data</td></tr></tbody>`;
+    tableEl.innerHTML = thead + tbodyHtml;
+    return;
+  }
+
+  tbodyHtml += "<tbody>";
+
+  Object.values(groups).forEach(group => {
+    // Sort variants by size
+    group.variants.sort((a, b) => a.size.localeCompare(b.size));
+
+    // Calculate aggregated values for parent row
+    const totalOnline = group.variants.reduce((sum, v) => sum + v.online_qty, 0);
+    const totalOffline = group.variants.reduce((sum, v) => sum + v.offline_qty, 0);
+    const totalQty = group.variants.reduce((sum, v) => sum + v.total_qty, 0);
+    
+    // Unique list of colors and sizes
+    const colors = [...new Set(group.variants.map(v => v.color))].join(", ");
+    const sizes = [...new Set(group.variants.map(v => v.size))].join(", ");
+    
+    // Representative prices
+    const minCost = Math.min(...group.variants.map(v => v.cost_price));
+    const maxCost = Math.max(...group.variants.map(v => v.cost_price));
+    const costStr = minCost === maxCost ? rupiah.format(minCost) : `${rupiah.format(minCost)} - ${rupiah.format(maxCost)}`;
+    
+    const minSell = Math.min(...group.variants.map(v => v.sell_price));
+    const maxSell = Math.max(...group.variants.map(v => v.sell_price));
+    const sellStr = minSell === maxSell ? rupiah.format(minSell) : `${rupiah.format(minSell)} - ${rupiah.format(maxSell)}`;
+    
+    // Use the base SKU (without the trailing size suffix)
+    const baseSku = group.variants[0].sku.replace(/-[^-]+$/, "");
+
+    // Render Parent Row
+    tbodyHtml += `
+      <tr class="product-parent-row" data-id="${group.product_id}" style="cursor: pointer; background-color: var(--soft-primary); font-weight: 600;">
+        <td style="text-align: center; font-size: 11px; color: var(--accent);" class="expand-indicator">▶</td>
+        <td>${baseSku}</td>
+        <td>${group.name}</td>
+        <td>${group.category}</td>
+        <td style="color: var(--muted); font-size: 11px;">${sizes}</td>
+        <td style="color: var(--muted); font-size: 11px;">${colors}</td>
+        <td>${costStr}</td>
+        <td>${sellStr}</td>
+        <td style="text-align: right;">${number.format(totalOnline)}</td>
+        <td style="text-align: right;">${number.format(totalOffline)}</td>
+        <td style="text-align: right;"><strong>${number.format(totalQty)}</strong></td>
+      </tr>
+    `;
+
+    // Render Child Rows (variants)
+    group.variants.forEach(v => {
+      tbodyHtml += `
+        <tr class="product-child-row hidden child-of-${group.product_id}" style="background-color: var(--card); border-left: 4px solid var(--accent);">
+          <td style="text-align: center;">
+            <button class="mini open-product" data-id="${v.variant_id}" type="button" title="Buka artikel">✎ Detail</button>
+          </td>
+          <td style="padding-left: 15px;">${v.sku}</td>
+          <td style="color: var(--muted);">${v.name}</td>
+          <td style="color: var(--muted);">${v.category}</td>
+          <td><strong>${v.size}</strong></td>
+          <td>${v.color}</td>
+          <td>${rupiah.format(v.cost_price)}</td>
+          <td>${rupiah.format(v.sell_price)}</td>
+          <td style="text-align: right;">${number.format(v.online_qty)}</td>
+          <td style="text-align: right;">${number.format(v.offline_qty)}</td>
+          <td style="text-align: right;"><strong>${number.format(v.total_qty)}</strong></td>
+        </tr>
+      `;
+    });
+  });
+
+  tbodyHtml += "</tbody>";
+  tableEl.innerHTML = thead + tbodyHtml;
+
+  // Add click listener for parents
+  tableEl.querySelectorAll(".product-parent-row").forEach(pRow => {
+    pRow.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      
+      const productId = pRow.dataset.id;
+      const indicator = pRow.querySelector(".expand-indicator");
+      
+      const childRows = tableEl.querySelectorAll(`.child-of-${productId}`);
+      const isHidden = childRows[0]?.classList.contains("hidden");
+      
+      childRows.forEach(cRow => {
+        if (isHidden) {
+          cRow.classList.remove("hidden");
+        } else {
+          cRow.classList.add("hidden");
+        }
+      });
+      
+      if (indicator) {
+        indicator.textContent = isHidden ? "▼" : "▶";
+      }
+    });
+  });
 }
 
 async function loadMovements() {
