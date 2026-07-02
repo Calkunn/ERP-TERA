@@ -1120,9 +1120,19 @@ async function calculateKeuanganReports() {
       .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Produksi', 'Jasa Jahit', 'Sablon / Bordir'].includes(e.category))
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const otherCost = monthExps
-      .filter(e => ['Operasional', 'Marketing', 'Lainnya'].includes(e.category))
+    const operasionalCost = monthExps
+      .filter(e => e.category === 'Operasional')
       .reduce((sum, e) => sum + e.amount, 0);
+
+    const marketingCost = monthExps
+      .filter(e => e.category === 'Marketing')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const lainnyaCost = monthExps
+      .filter(e => e.category === 'Lainnya')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const otherCost = operasionalCost + marketingCost + lainnyaCost;
 
     const netIncome = operatingIncome - otherCost - bayarDavid - bahanKain;
 
@@ -1159,6 +1169,9 @@ async function calculateKeuanganReports() {
       operatingIncome,
       bayarDavid,
       otherCost,
+      operasionalCost,
+      marketingCost,
+      lainnyaCost,
       netIncome,
       beginningCash,
       cashReceived,

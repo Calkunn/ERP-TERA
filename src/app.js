@@ -2277,12 +2277,20 @@ function renderIncomeStatement(data) {
     
     <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Other cost</td></tr>
     <tr>
-      <td>Other cost <span class="formula-note">(Operasional & Marketing)</span></td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.otherCost)}</td>`).join("")}
+      <td>Operasional</td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.operasionalCost || 0)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Marketing</td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.marketingCost || 0)}</td>`).join("")}
     </tr>
     <tr>
       <td>Gaji Karyawan</td>
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.bayarDavid)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Lain-lain</td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.lainnyaCost || 0)}</td>`).join("")}
     </tr>
     <tr class="total-row">
       <td>Net Income</td>
