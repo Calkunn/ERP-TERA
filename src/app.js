@@ -2020,7 +2020,7 @@ document.querySelector("#monthlyRevenueTable").addEventListener("click", async (
     const form = document.querySelector("#monthlyRevenueForm");
     form.month.value = row.month;
     form.onlineRevenue.value = row.online_revenue;
-    form.offlineRevenue.value = row.offline_revenue;
+    form.offlineRevenue.value = Math.round(row.offline_revenue / 0.64);
     form.onlineNotes.value = row.online_notes || "";
     form.offlineNotes.value = row.offline_notes || "";
     form.onlineOrderCount.value = row.online_order_count || 0;

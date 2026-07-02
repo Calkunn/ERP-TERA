@@ -317,6 +317,35 @@ async function initDb() {
   }
 
   await migrateDuplicateProducts();
+  await migrateOfflineRevenuesToNet();
+}
+
+async function migrateOfflineRevenuesToNet() {
+  console.log("Starting offline revenue commission migration...");
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS migration_versions (
+      version TEXT PRIMARY KEY,
+      migrated_at TEXT NOT NULL
+    )
+  `);
+  
+  const migrated = await db.prepare("SELECT 1 FROM migration_versions WHERE version = 'offline_commission_deduction'").get();
+  if (migrated) {
+    console.log("Offline revenue commission migration already completed. Skipping.");
+    return;
+  }
+
+  await db.exec("BEGIN");
+  try {
+    console.log("Updating existing offline revenues to net values (multiplying by 0.64)...");
+    await db.prepare("UPDATE monthly_revenues SET offline_revenue = ROUND(offline_revenue * 0.64)").run();
+    await db.prepare("INSERT INTO migration_versions (version, migrated_at) VALUES ('offline_commission_deduction', CURRENT_TIMESTAMP)").run();
+    await db.exec("COMMIT");
+    console.log("Offline revenue commission migration completed successfully!");
+  } catch (err) {
+    await db.exec("ROLLBACK");
+    console.error("Failed to run offline revenue commission migration:", err);
+  }
 }
 
 async function migrateDuplicateProducts() {
@@ -1068,7 +1097,8 @@ async function calculateKeuanganReports() {
 
   for (const m of allMonths) {
     const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
-    const grossSales = rev.online_revenue + rev.offline_revenue;
+    const grossOffline = Math.round(rev.offline_revenue / 0.64);
+    const grossSales = rev.online_revenue + grossOffline;
     const monthExps = expensesByMonth[m] || [];
     const totalExpenses = monthExps.reduce((sum, e) => sum + e.amount, 0);
 
@@ -1076,7 +1106,7 @@ async function calculateKeuanganReports() {
       continue;
     }
 
-    const komisi = Math.round(rev.offline_revenue * 0.36);
+    const komisi = grossOffline - rev.offline_revenue;
     const totalRevenue = grossSales - komisi;
     const cogs = cogsMap.get(m) || 0;
     const operatingIncome = totalRevenue - cogs;
@@ -2083,7 +2113,7 @@ async function api(req, res) {
       `).run(
         body.month,
         Number(body.onlineRevenue || 0),
-        Number(body.offlineRevenue || 0),
+        Math.round(Number(body.offlineRevenue || 0) * 0.64),
         Number(body.onlineOrderCount || 0),
         body.onlineNotes || "",
         body.offlineNotes || ""
