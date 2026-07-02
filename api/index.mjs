@@ -315,6 +315,61 @@ async function initDb() {
     await seedMonthlyExpenses();
     await personalizeExistingData();
   }
+
+  await migrateDuplicateProducts();
+}
+
+async function migrateDuplicateProducts() {
+  console.log("Starting product size-variant migration...");
+  await db.exec("BEGIN");
+  try {
+    const allProducts = await db.prepare("SELECT id, name, category FROM products").all();
+    
+    const getBaseProductName = (name) => {
+      const clean = name.trim();
+      const match = clean.match(/(.+)\s+(s|m|l|xl|xxl|xxxl|all\s+size)$/i);
+      if (match) {
+        return match[1].trim();
+      }
+      return clean;
+    };
+
+    const groups = new Map();
+    for (const p of allProducts) {
+      const baseName = getBaseProductName(p.name);
+      const key = `${baseName.toLowerCase()}|||${p.category.toLowerCase()}`;
+      if (!groups.has(key)) {
+        groups.set(key, { baseName, category: p.category, items: [] });
+      }
+      groups.get(key).items.push(p);
+    }
+
+    for (const [key, group] of groups.entries()) {
+      if (group.items.length <= 1) continue;
+
+      group.items.sort((a, b) => a.id - b.id);
+      const master = group.items[0];
+      const duplicates = group.items.slice(1);
+
+      console.log(`Merging duplicates for product "${group.baseName}" (Category: ${group.category}):`);
+      console.log(`  Master ID: ${master.id} ("${master.name}")`);
+      
+      await db.prepare("UPDATE products SET name = ? WHERE id = ?").run(group.baseName, master.id);
+
+      for (const dup of duplicates) {
+        console.log(`  Merging duplicate ID: ${dup.id} ("${dup.name}") -> ${master.id}`);
+        await db.prepare("UPDATE variants SET product_id = ? WHERE product_id = ?").run(master.id, dup.id);
+        await db.prepare("UPDATE production_batch_items SET product_id = ? WHERE product_id = ?").run(master.id, dup.id);
+        await db.prepare("UPDATE bill_of_materials SET product_id = ? WHERE product_id = ?").run(master.id, dup.id);
+        await db.prepare("DELETE FROM products WHERE id = ?").run(dup.id);
+      }
+    }
+    await db.exec("COMMIT");
+    console.log("Product size-variant migration completed successfully!");
+  } catch (err) {
+    await db.exec("ROLLBACK");
+    console.error("Failed to run product size-variant migration:", err);
+  }
 }
 
 async function seedInventoryPools() {
@@ -1857,13 +1912,24 @@ async function api(req, res) {
     if (!name || !sku) return json(res, 400, { error: "Nama artikel dan SKU wajib diisi" });
     await db.exec("BEGIN");
     try {
-      const product = await db.prepare("INSERT INTO products (name, category, status) VALUES (?, ?, 'Aktif')")
-        .run(name, body.category || "T-Shirt");
+      const category = body.category || "T-Shirt";
+      let productId;
+      
+      const existingProduct = await db.prepare("SELECT id FROM products WHERE name = ? AND category = ?").get(name, category);
+      if (existingProduct) {
+        productId = existingProduct.id;
+        await db.prepare("UPDATE products SET status = 'Aktif' WHERE id = ?").run(productId);
+      } else {
+        const product = await db.prepare("INSERT INTO products (name, category, status) VALUES (?, ?, 'Aktif')")
+          .run(name, category);
+        productId = product.lastInsertRowid;
+      }
+
       const variant = await db.prepare(`
         INSERT INTO variants (product_id, sku, size, color, cost_price, sell_price, low_stock)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
-        product.lastInsertRowid,
+        productId,
         sku,
         body.size || "All Size",
         body.color || "Black",
@@ -1920,8 +1986,24 @@ async function api(req, res) {
     const variantId = Number(url.pathname.split("/").at(-1));
     const current = await db.prepare("SELECT product_id FROM variants WHERE id = ?").get(variantId);
     if (!current) return json(res, 404, { error: "Artikel tidak ditemukan" });
-    await db.prepare("UPDATE products SET status = 'Archived' WHERE id = ?").run(current.product_id);
-    return json(res, 200, { ok: true });
+    
+    const otherVariants = await db.prepare("SELECT COUNT(*) AS total FROM variants WHERE product_id = ? AND id != ?")
+      .get(current.product_id, variantId);
+    const hasOther = Number(otherVariants ? otherVariants.total : 0) > 0;
+    
+    await db.exec("BEGIN");
+    try {
+      if (hasOther) {
+        await db.prepare("DELETE FROM variants WHERE id = ?").run(variantId);
+      } else {
+        await db.prepare("UPDATE products SET status = 'Archived' WHERE id = ?").run(current.product_id);
+      }
+      await db.exec("COMMIT");
+      return json(res, 200, { ok: true });
+    } catch (err) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: err.message });
+    }
   }
 
   if (req.method === "POST" && url.pathname === "/api/monthly-revenues") {
