@@ -756,26 +756,70 @@ async function monthlyExpenses() {
 }
 
 async function profitSummary() {
-  return await db.prepare(`
-    WITH revenue AS (
-      SELECT month, online_revenue + offline_revenue AS revenue
-      FROM monthly_revenues
-    ),
-    expense AS (
-      SELECT month, SUM(amount) AS expense
-      FROM monthly_expenses
-      GROUP BY month
-    )
-    SELECT
-      revenue.month,
-      revenue.revenue,
-      COALESCE(expense.expense, 0) AS expense,
-      revenue.revenue - COALESCE(expense.expense, 0) AS profit,
-      SUM(revenue.revenue - COALESCE(expense.expense, 0)) OVER (ORDER BY revenue.month) AS cumulative_profit
-    FROM revenue
-    LEFT JOIN expense ON expense.month = revenue.month
-    ORDER BY revenue.month DESC
+  const revenues = await db.prepare(`
+    SELECT month, (online_revenue + offline_revenue) AS revenue
+    FROM monthly_revenues
+    ORDER BY month ASC
   `).all();
+
+  const expenses = await db.prepare(`
+    SELECT month, amount
+    FROM monthly_expenses
+  `).all();
+
+  if (revenues.length === 0) return [];
+
+  const incomeMonths = revenues.map(r => r.month);
+
+  const getMonthVal = (mStr) => {
+    const [y, m] = mStr.split('-').map(Number);
+    return y * 12 + m;
+  };
+
+  const expenseMap = new Map();
+  for (const r of revenues) {
+    expenseMap.set(r.month, 0);
+  }
+
+  for (const e of expenses) {
+    let targetMonth = e.month;
+    if (!expenseMap.has(e.month)) {
+      const eVal = getMonthVal(e.month);
+      let closestMonth = incomeMonths[0];
+      let minDiff = Math.abs(eVal - getMonthVal(closestMonth));
+      for (let i = 1; i < incomeMonths.length; i++) {
+        const diff = Math.abs(eVal - getMonthVal(incomeMonths[i]));
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestMonth = incomeMonths[i];
+        } else if (diff === minDiff) {
+          if (getMonthVal(incomeMonths[i]) > getMonthVal(closestMonth)) {
+            closestMonth = incomeMonths[i];
+          }
+        }
+      }
+      targetMonth = closestMonth;
+    }
+    expenseMap.set(targetMonth, expenseMap.get(targetMonth) + e.amount);
+  }
+
+  let cumulativeProfit = 0;
+  const list = [];
+  for (const r of revenues) {
+    const revVal = r.revenue;
+    const expVal = expenseMap.get(r.month) || 0;
+    const profit = revVal - expVal;
+    cumulativeProfit += profit;
+    list.push({
+      month: r.month,
+      revenue: revVal,
+      expense: expVal,
+      profit: profit,
+      cumulative_profit: cumulativeProfit
+    });
+  }
+
+  return list.reverse();
 }
 
 async function reverseMonthlyRevenueStock(month) {
@@ -902,10 +946,38 @@ async function calculateKeuanganReports() {
     ORDER BY mr.month ASC
   `).all();
 
-  const expenses = await db.prepare(`
+  const rawExpenses = await db.prepare(`
     SELECT id, month, category, amount, note
     FROM monthly_expenses
   `).all();
+
+  const incomeMonths = revenues.map(r => r.month);
+
+  const getMonthVal = (mStr) => {
+    const [y, m] = mStr.split('-').map(Number);
+    return y * 12 + m;
+  };
+
+  const expenses = rawExpenses.map(e => {
+    if (incomeMonths.includes(e.month)) return e;
+    if (incomeMonths.length === 0) return e;
+
+    const eVal = getMonthVal(e.month);
+    let closestMonth = incomeMonths[0];
+    let minDiff = Math.abs(eVal - getMonthVal(closestMonth));
+    for (let i = 1; i < incomeMonths.length; i++) {
+      const diff = Math.abs(eVal - getMonthVal(incomeMonths[i]));
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestMonth = incomeMonths[i];
+      } else if (diff === minDiff) {
+        if (getMonthVal(incomeMonths[i]) > getMonthVal(closestMonth)) {
+          closestMonth = incomeMonths[i];
+        }
+      }
+    }
+    return { ...e, month: closestMonth };
+  });
 
   const cogsList = await db.prepare(`
     SELECT mr.month, SUM((mri.online_qty + mri.offline_qty) * v.cost_price) AS cogs
@@ -967,7 +1039,7 @@ async function calculateKeuanganReports() {
       .filter(e => ['Operasional', 'Marketing', 'Lainnya'].includes(e.category))
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const netIncome = operatingIncome - otherCost - bayarDavid;
+    const netIncome = operatingIncome - otherCost - bayarDavid - bahanKain;
 
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
