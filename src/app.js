@@ -438,9 +438,9 @@ async function loadProducts() {
     group.variants.sort((a, b) => a.size.localeCompare(b.size));
 
     // Calculate aggregated values for parent row
-    const totalOnline = group.variants.reduce((sum, v) => sum + v.online_qty, 0);
-    const totalOffline = group.variants.reduce((sum, v) => sum + v.offline_qty, 0);
-    const totalQty = group.variants.reduce((sum, v) => sum + v.total_qty, 0);
+    const totalOnline = group.variants.reduce((sum, v) => sum + Number(v.online_qty || 0), 0);
+    const totalOffline = group.variants.reduce((sum, v) => sum + Number(v.offline_qty || 0), 0);
+    const totalQty = group.variants.reduce((sum, v) => sum + Number(v.total_qty || 0), 0);
     
     // Unique list of colors and sizes
     const colors = [...new Set(group.variants.map(v => v.color))].join(", ");
