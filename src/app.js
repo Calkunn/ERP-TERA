@@ -1112,9 +1112,9 @@ document.querySelector("#productsTable").addEventListener("click", (event) => {
 const categoryStockTableBody = document.querySelector("#categoryStockTableBody");
 if (categoryStockTableBody) {
   categoryStockTableBody.addEventListener("click", (event) => {
-    const rowEl = event.target.closest(".clickable-stock-row");
-    if (!rowEl) return;
-    openProductDetailDrawer(rowEl.dataset.id);
+    const editBtn = event.target.closest(".open-product-inv");
+    if (!editBtn) return;
+    openProductDetailDrawer(editBtn.dataset.id);
   });
 }
 
@@ -2527,27 +2527,69 @@ function renderCashBudget(data) {
 
 async function loadCategoryStocks() {
   try {
-    const data = await api("/api/inventory/categories");
+    const [catData, prodRows] = await Promise.all([
+      api("/api/inventory/categories"),
+      api("/api/products")
+    ]);
     const tbody = document.querySelector("#categoryStockTableBody");
     if (!tbody) return;
     
+    const clothingProds = prodRows.filter(p => !['Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag'].includes(p.category));
+    
+    const groups = {};
+    clothingProds.forEach(r => {
+      if (!groups[r.product_id]) {
+        groups[r.product_id] = {
+          product_id: r.product_id,
+          name: r.name,
+          category: r.category,
+          variants: []
+        };
+      }
+      groups[r.product_id].variants.push(r);
+    });
+
     let html = "";
-    data.clothing.forEach(row => {
+    
+    Object.values(groups).forEach(group => {
+      group.variants.sort((a, b) => a.size.localeCompare(b.size));
+
+      const totalOnline = group.variants.reduce((sum, v) => sum + Number(v.online_qty || 0), 0);
+      const totalOffline = group.variants.reduce((sum, v) => sum + Number(v.offline_qty || 0), 0);
+      const totalQty = group.variants.reduce((sum, v) => sum + Number(v.total_qty || 0), 0);
+      
       html += `
-        <tr class="clickable-stock-row" data-id="${row.variant_id}" style="cursor: pointer;">
-          <td><strong>${row.category} - ${row.product_name}</strong> <span style="font-size:10px; color:var(--muted); margin-left:8px; font-weight:normal;">(klik detail)</span></td>
-          <td style="text-align:right;">${number.format(row.online_qty)} pcs</td>
-          <td style="text-align:right;">${number.format(row.offline_qty)} pcs</td>
-          <td style="text-align:right;"><strong>${number.format(row.total_qty)} pcs</strong></td>
+        <tr class="stock-parent-row" data-id="${group.product_id}" style="cursor: pointer; font-weight: 600;">
+          <td>
+            <span class="expand-indicator-inv" style="margin-right: 8px; color: var(--accent);">▶</span>
+            <strong>${group.category} - ${group.name}</strong>
+          </td>
+          <td style="text-align:right;">${number.format(totalOnline)} pcs</td>
+          <td style="text-align:right;">${number.format(totalOffline)} pcs</td>
+          <td style="text-align:right;"><strong>${number.format(totalQty)} pcs</strong></td>
         </tr>
       `;
+
+      group.variants.forEach(v => {
+        html += `
+          <tr class="stock-child-row hidden child-inv-of-${group.product_id}" style="background-color: var(--card); border-left: 4px solid var(--accent);">
+            <td style="padding-left: 20px;">
+              <button class="mini open-product-inv" data-id="${v.variant_id}" type="button" style="margin-right: 8px; padding: 2px 6px; font-size: 10px;">✎ Edit</button>
+              <strong>${v.size}</strong> - ${v.color}
+            </td>
+            <td style="text-align:right;">${number.format(v.online_qty)} pcs</td>
+            <td style="text-align:right;">${number.format(v.offline_qty)} pcs</td>
+            <td style="text-align:right;"><strong>${number.format(v.total_qty)} pcs</strong></td>
+          </tr>
+        `;
+      });
     });
     
     let pkgBaju = 0;
     let pkgOrder = 0;
     let hangtag = 0;
     
-    data.auxiliary.forEach(row => {
+    catData.auxiliary.forEach(row => {
       if (row.name === "Packaging Baju") pkgBaju = row.qty;
       if (row.name === "Packaging Order") pkgOrder = row.qty;
       if (row.name === "Hangtag") hangtag = row.qty;
@@ -2573,9 +2615,35 @@ async function loadCategoryStocks() {
         <td style="text-align:right;"><strong>${number.format(hangtag)} pcs</strong></td>
       </tr>
     `;
+    
     tbody.innerHTML = html;
+
+    tbody.querySelectorAll(".stock-parent-row").forEach(pRow => {
+      pRow.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return;
+        
+        const productId = pRow.dataset.id;
+        const indicator = pRow.querySelector(".expand-indicator-inv");
+        
+        const childRows = tbody.querySelectorAll(`.child-inv-of-${productId}`);
+        const isHidden = childRows[0]?.classList.contains("hidden");
+        
+        childRows.forEach(cRow => {
+          if (isHidden) {
+            cRow.classList.remove("hidden");
+          } else {
+            cRow.classList.add("hidden");
+          }
+        });
+        
+        if (indicator) {
+          indicator.textContent = isHidden ? "▼" : "▶";
+        }
+      });
+    });
+
   } catch (error) {
-    console.error("Failed to load category stocks:", error);
+    toast(error.message);
   }
 }
 

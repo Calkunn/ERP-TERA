@@ -2108,9 +2108,13 @@ async function api(req, res) {
     
     await db.exec("BEGIN");
     try {
-      if (hasOther) {
-        await db.prepare("DELETE FROM variants WHERE id = ?").run(variantId);
-      } else {
+      // Wiping out inventory data explicitly to ensure it is deleted
+      await db.prepare("DELETE FROM inventory_balances WHERE variant_id = ?").run(variantId);
+      await db.prepare("DELETE FROM stock_movements WHERE variant_id = ?").run(variantId);
+      await db.prepare("DELETE FROM stock_transfers WHERE variant_id = ?").run(variantId);
+      await db.prepare("DELETE FROM variants WHERE id = ?").run(variantId);
+
+      if (!hasOther) {
         await db.prepare("UPDATE products SET status = 'Archived' WHERE id = ?").run(current.product_id);
       }
       await db.exec("COMMIT");
