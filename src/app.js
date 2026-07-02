@@ -435,7 +435,7 @@ async function loadProducts() {
 
   Object.values(groups).forEach(group => {
     // Sort variants by size
-    group.variants.sort((a, b) => a.size.localeCompare(b.size));
+    group.variants.sort((a, b) => String(a.size || "").localeCompare(String(b.size || "")));
 
     // Calculate aggregated values for parent row
     const totalOnline = group.variants.reduce((sum, v) => sum + Number(v.online_qty || 0), 0);
@@ -1108,13 +1108,39 @@ document.querySelector("#productsTable").addEventListener("click", (event) => {
   openProductDetailDrawer(button.dataset.id);
 });
 
-// Listen category stock table row click to open Detail Drawer
+// Listen category stock table row click to open Detail Drawer or edit auxiliary
 const categoryStockTableBody = document.querySelector("#categoryStockTableBody");
 if (categoryStockTableBody) {
-  categoryStockTableBody.addEventListener("click", (event) => {
+  categoryStockTableBody.addEventListener("click", async (event) => {
     const editBtn = event.target.closest(".open-product-inv");
-    if (!editBtn) return;
-    openProductDetailDrawer(editBtn.dataset.id);
+    if (editBtn) {
+      openProductDetailDrawer(editBtn.dataset.id);
+      return;
+    }
+    
+    const auxBtn = event.target.closest(".open-auxiliary-edit");
+    if (auxBtn) {
+      const name = auxBtn.dataset.name;
+      const currentQty = auxBtn.dataset.qty;
+      const newQtyStr = prompt(`Masukkan jumlah stok baru untuk ${name}:`, currentQty);
+      if (newQtyStr === null) return;
+      const newQty = parseInt(newQtyStr, 10);
+      if (isNaN(newQty)) {
+        toast("Jumlah stok tidak valid!");
+        return;
+      }
+      try {
+        await api(`/api/inventory/auxiliary/${encodeURIComponent(name)}`, {
+          method: "PUT",
+          body: JSON.stringify({ qty: newQty })
+        });
+        toast(`Stok ${name} berhasil diperbarui.`);
+        await refreshAll();
+      } catch (error) {
+        toast(error.message);
+      }
+      return;
+    }
   });
 }
 
@@ -2552,7 +2578,7 @@ async function loadCategoryStocks() {
     let html = "";
     
     Object.values(groups).forEach(group => {
-      group.variants.sort((a, b) => a.size.localeCompare(b.size));
+      group.variants.sort((a, b) => String(a.size || "").localeCompare(String(b.size || "")));
 
       const totalOnline = group.variants.reduce((sum, v) => sum + Number(v.online_qty || 0), 0);
       const totalOffline = group.variants.reduce((sum, v) => sum + Number(v.offline_qty || 0), 0);
@@ -2597,19 +2623,28 @@ async function loadCategoryStocks() {
     
     html += `
       <tr style="border-top: 2px solid var(--line); background: var(--soft-primary);">
-        <td><strong>Packaging Baju</strong></td>
+        <td>
+          <button class="mini open-auxiliary-edit" data-name="Packaging Baju" data-qty="${pkgBaju}" type="button" style="margin-right: 8px; padding: 2px 6px; font-size: 10px;">✎ Edit</button>
+          <strong>Packaging Baju</strong>
+        </td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right;"><strong>${number.format(pkgBaju)} pcs</strong></td>
       </tr>
       <tr style="background: var(--soft-primary);">
-        <td><strong>Packaging Order</strong></td>
+        <td>
+          <button class="mini open-auxiliary-edit" data-name="Packaging Order" data-qty="${pkgOrder}" type="button" style="margin-right: 8px; padding: 2px 6px; font-size: 10px;">✎ Edit</button>
+          <strong>Packaging Order</strong>
+        </td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right;"><strong>${number.format(pkgOrder)} pcs</strong></td>
       </tr>
       <tr style="background: var(--soft-primary);">
-        <td><strong>Hangtag</strong></td>
+        <td>
+          <button class="mini open-auxiliary-edit" data-name="Hangtag" data-qty="${hangtag}" type="button" style="margin-right: 8px; padding: 2px 6px; font-size: 10px;">✎ Edit</button>
+          <strong>Hangtag</strong>
+        </td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right; color:var(--muted);">-</td>
         <td style="text-align:right;"><strong>${number.format(hangtag)} pcs</strong></td>

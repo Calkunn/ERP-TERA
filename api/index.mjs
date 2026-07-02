@@ -2523,6 +2523,20 @@ Keep your answers highly practical, actionable, and structured using markdown. K
     }
   }
 
+  if (req.method === "PUT" && url.pathname.startsWith("/api/inventory/auxiliary/")) {
+    const name = decodeURIComponent(url.pathname.split("/").at(-1));
+    const body = await readJson(req);
+    const qty = Number(body.qty);
+    if (isNaN(qty)) return json(res, 400, { error: "Jumlah qty tidak valid" });
+    
+    try {
+      await db.prepare("UPDATE auxiliary_balances SET qty = ? WHERE name = ?").run(qty, name);
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
   return json(res, 404, { error: "Not found" });
 }
 
