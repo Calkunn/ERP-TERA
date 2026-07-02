@@ -1116,9 +1116,15 @@ async function calculateKeuanganReports() {
       .filter(e => e.category === 'Gaji Karyawan')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const bahanKain = monthExps
-      .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Produksi', 'Jasa Jahit', 'Sablon / Bordir'].includes(e.category))
-      .reduce((sum, e) => sum + e.amount, 0);
+    const bahanBakuCost = monthExps.filter(e => e.category === 'Bahan Baku').reduce((sum, e) => sum + e.amount, 0);
+    const purchaseOrderCost = monthExps.filter(e => e.category === 'Purchase Order').reduce((sum, e) => sum + e.amount, 0);
+    const produksiCost = monthExps.filter(e => e.category === 'Produksi').reduce((sum, e) => sum + e.amount, 0);
+    const jasaJahitCost = monthExps.filter(e => e.category === 'Jasa Jahit').reduce((sum, e) => sum + e.amount, 0);
+    const sablonBordirCost = monthExps.filter(e => e.category === 'Sablon / Bordir').reduce((sum, e) => sum + e.amount, 0);
+    const packagingCost = monthExps.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
+    const hangtagCost = monthExps.filter(e => e.category === 'Hangtag').reduce((sum, e) => sum + e.amount, 0);
+
+    const bahanKain = bahanBakuCost + purchaseOrderCost + produksiCost + jasaJahitCost + sablonBordirCost + packagingCost + hangtagCost;
 
     const operasionalCost = monthExps
       .filter(e => e.category === 'Operasional')
@@ -1172,6 +1178,13 @@ async function calculateKeuanganReports() {
       operasionalCost,
       marketingCost,
       lainnyaCost,
+      bahanBakuCost,
+      purchaseOrderCost,
+      produksiCost,
+      jasaJahitCost,
+      sablonBordirCost,
+      packagingCost,
+      hangtagCost,
       netIncome,
       beginningCash,
       cashReceived,
