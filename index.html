@@ -172,9 +172,44 @@
                   <option>Hangtag</option>
                 </select>
               </div>
-              <div>
+              <div style="position: relative;" id="sizeSelectorDropdownGroup">
                 <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Size</label>
-                <input name="size" placeholder="Size" value="M">
+                <div id="sizeSelectBtn" style="padding: 10px; background: white; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; min-height: 38px;">
+                  <span id="sizeSelectLabel" style="color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px;">M</span>
+                  <span style="font-size:10px; color:var(--muted);">▼</span>
+                </div>
+                
+                <!-- Size selection popover -->
+                <div id="sizeSelectPopover" class="size-popover hidden" style="position: absolute; top: 100%; left: 0; right: -50px; background: white; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 100; padding: 12px; margin-top: 4px; min-width: 250px;">
+                  <!-- Size group switch -->
+                  <div style="display:flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 8px; font-size:11px;">
+                    <span class="size-type-tab active" data-type="alpha" style="font-weight:700; cursor:pointer; color:var(--accent);">Huruf</span>
+                    <span class="size-type-tab" data-type="numeric" style="font-weight:700; cursor:pointer; color:var(--muted);">Angka</span>
+                    <span class="size-type-tab" data-type="custom" style="font-weight:700; cursor:pointer; color:var(--muted);">Kustom</span>
+                  </div>
+                  
+                  <!-- Alpha group -->
+                  <div id="sizeGroupAlpha" class="size-group-content" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  </div>
+                  
+                  <!-- Numeric group -->
+                  <div id="sizeGroupNumeric" class="size-group-content hidden" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  </div>
+                  
+                  <!-- Custom group -->
+                  <div id="sizeGroupCustom" class="size-group-content hidden" style="display: flex; flex-direction: column; gap: 6px;">
+                    <input type="text" id="customSizeText" placeholder="Ketik ukuran baru (misal: XXXL)" style="padding: 6px; font-size: 11px; width: 100%; box-sizing: border-box;">
+                    <button type="button" id="btnCustomSizeAdd" style="padding: 6px 12px; font-size: 11px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">Tambah</button>
+                  </div>
+
+                  <!-- Selected info / done -->
+                  <div style="display:flex; justify-content: space-between; align-items:center; margin-top:12px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 11px;">
+                    <span style="color:var(--muted);" id="selectedCountInfo">1 terpilih</span>
+                    <button type="button" id="sizeSelectDoneBtn" style="padding: 4px 10px; background: var(--foreground); color: white; border: none; border-radius: 4px; cursor: pointer;">Selesai</button>
+                  </div>
+                </div>
+                
+                <input type="hidden" name="size" id="sizeHiddenInput" value="M">
               </div>
               <div>
                 <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Warna</label>
@@ -986,6 +1021,16 @@
                   <option>Draft</option>
                   <option>Archived</option>
                 </select>
+              </div>
+            </div>
+            <div class="split">
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Stok Online</label>
+                <input name="onlineQty" type="number" min="0" placeholder="Stok Online" required>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Stok Offline</label>
+                <input name="offlineQty" type="number" min="0" placeholder="Stok Offline" required>
               </div>
             </div>
             <div class="split">

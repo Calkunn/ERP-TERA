@@ -921,11 +921,9 @@ function closeDrawer() {
 document.querySelector("#closeDrawerBtn").addEventListener("click", closeDrawer);
 document.querySelector("#drawerOverlay").addEventListener("click", closeDrawer);
 
-// Listen products table click to open Detail Drawer
-document.querySelector("#productsTable").addEventListener("click", (event) => {
-  const button = event.target.closest(".open-product");
-  if (!button) return;
-  const row = productRows.find((item) => String(item.variant_id) === button.dataset.id);
+// Function to open sliding Product Detail Drawer
+function openProductDetailDrawer(variantId) {
+  const row = productRows.find((item) => String(item.variant_id) === String(variantId));
   if (!row) return;
 
   // Static Details
@@ -948,6 +946,8 @@ document.querySelector("#productsTable").addEventListener("click", (event) => {
   form.sellPrice.value = row.sell_price;
   form.lowStock.value = row.low_stock;
   form.status.value = row.status;
+  form.onlineQty.value = row.online_qty;
+  form.offlineQty.value = row.offline_qty;
 
   // Build pivot matrix Size x Color
   const siblingVariants = productRows.filter((p) => p.product_id === row.product_id);
@@ -978,7 +978,24 @@ document.querySelector("#productsTable").addEventListener("click", (event) => {
   // Display sliding drawer
   document.querySelector("#productDetailDrawer").classList.remove("hidden");
   document.querySelector("#drawerOverlay").classList.remove("hidden");
+}
+
+// Listen products table click to open Detail Drawer
+document.querySelector("#productsTable").addEventListener("click", (event) => {
+  const button = event.target.closest(".open-product");
+  if (!button) return;
+  openProductDetailDrawer(button.dataset.id);
 });
+
+// Listen category stock table row click to open Detail Drawer
+const categoryStockTableBody = document.querySelector("#categoryStockTableBody");
+if (categoryStockTableBody) {
+  categoryStockTableBody.addEventListener("click", (event) => {
+    const rowEl = event.target.closest(".clickable-stock-row");
+    if (!rowEl) return;
+    openProductDetailDrawer(rowEl.dataset.id);
+  });
+}
 
 // Drawer edit form submit
 document.querySelector("#drawerEditProductForm").addEventListener("submit", async (event) => {
@@ -1788,12 +1805,144 @@ document.querySelector("#logoutBtn").addEventListener("click", () => {
   showLogin();
 });
 
+let selectedSizes = ["M"];
+
+function initSizeSelector() {
+  const sizeSelectBtn = document.querySelector("#sizeSelectBtn");
+  const sizeSelectPopover = document.querySelector("#sizeSelectPopover");
+  const sizeHiddenInput = document.querySelector("#sizeHiddenInput");
+  const sizeSelectLabel = document.querySelector("#sizeSelectLabel");
+  const selectedCountInfo = document.querySelector("#selectedCountInfo");
+  const sizeSelectDoneBtn = document.querySelector("#sizeSelectDoneBtn");
+
+  if (!sizeSelectBtn) return;
+
+  sizeSelectBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    sizeSelectPopover.classList.toggle("hidden");
+  });
+
+  sizeSelectDoneBtn.addEventListener("click", () => {
+    sizeSelectPopover.classList.add("hidden");
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!sizeSelectPopover.classList.contains("hidden") && !sizeSelectPopover.contains(e.target) && e.target !== sizeSelectBtn) {
+      sizeSelectPopover.classList.add("hidden");
+    }
+  });
+
+  const tabs = document.querySelectorAll(".size-type-tab");
+  tabs.forEach(tab => {
+    tab.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      const type = tab.dataset.type;
+      document.querySelectorAll(".size-group-content").forEach(el => el.classList.add("hidden"));
+      if (type === "alpha") {
+        document.querySelector("#sizeGroupAlpha").classList.remove("hidden");
+      } else if (type === "numeric") {
+        document.querySelector("#sizeGroupNumeric").classList.remove("hidden");
+      } else if (type === "custom") {
+        document.querySelector("#sizeGroupCustom").classList.remove("hidden");
+      }
+    });
+  });
+
+  const alphaSizes = ["S", "M", "L", "XL", "XXL", "All Size"];
+  const numericSizes = ["27", "28", "29", "30", "31", "32", "33", "34", "35", "36"];
+
+  window.renderChips = function() {
+    const alphaContainer = document.querySelector("#sizeGroupAlpha");
+    if (alphaContainer) {
+      alphaContainer.innerHTML = alphaSizes.map(sz => {
+        const isSelected = selectedSizes.includes(sz);
+        return `<span class="size-chip" data-size="${sz}" style="${getChipStyle(isSelected)}">${sz}</span>`;
+      }).join("");
+    }
+
+    const numericContainer = document.querySelector("#sizeGroupNumeric");
+    if (numericContainer) {
+      numericContainer.innerHTML = numericSizes.map(sz => {
+        const isSelected = selectedSizes.includes(sz);
+        return `<span class="size-chip" data-size="${sz}" style="${getChipStyle(isSelected)}">${sz}</span>`;
+      }).join("");
+    }
+
+    document.querySelectorAll(".size-chip").forEach(chip => {
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sz = chip.dataset.size;
+        const index = selectedSizes.indexOf(sz);
+        if (index > -1) {
+          if (selectedSizes.length > 1) {
+            selectedSizes.splice(index, 1);
+          }
+        } else {
+          selectedSizes.push(sz);
+        }
+        updateSelectedUI();
+        window.renderChips();
+      });
+    });
+  };
+
+  function getChipStyle(isSelected) {
+    if (isSelected) {
+      return "border: 1px solid var(--accent); background: var(--soft-primary); color: var(--accent); font-weight: 600; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; display: inline-block; margin: 2px 0;";
+    }
+    return "border: 1px solid var(--line); background: white; color: var(--foreground); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; display: inline-block; margin: 2px 0;";
+  }
+
+  window.updateSelectedUI = function() {
+    if (sizeHiddenInput) {
+      sizeHiddenInput.value = selectedSizes.join(",");
+      sizeHiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    if (sizeSelectLabel) {
+      sizeSelectLabel.textContent = selectedSizes.join(", ");
+    }
+    if (selectedCountInfo) {
+      selectedCountInfo.textContent = `${selectedSizes.length} terpilih`;
+    }
+    const form = document.querySelector("#productForm");
+    if (form && form.sku) {
+      form.sku.value = generateSku(form.name.value, form.category.value, selectedSizes.join(","), form.color.value);
+    }
+  };
+
+  const btnCustomSizeAdd = document.querySelector("#btnCustomSizeAdd");
+  const customSizeText = document.querySelector("#customSizeText");
+  if (btnCustomSizeAdd && customSizeText) {
+    btnCustomSizeAdd.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const val = customSizeText.value.trim().toUpperCase();
+      if (val && !selectedSizes.includes(val)) {
+        selectedSizes.push(val);
+        customSizeText.value = "";
+        updateSelectedUI();
+        window.renderChips();
+      }
+    });
+  }
+
+  updateSelectedUI();
+  window.renderChips();
+}
+
 // Add variant
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
     await api("/api/products", { method: "POST", body: JSON.stringify(formData(event.target)) });
     event.target.reset();
+    selectedSizes = ["M"];
+    if (typeof window.updateSelectedUI === "function") {
+      window.updateSelectedUI();
+      window.renderChips();
+    }
     const totalInput = event.target.querySelector("#productFormTotal");
     if (totalInput) totalInput.value = "";
     toast("Artikel baru TERA berhasil ditambahkan.");
@@ -1826,23 +1975,27 @@ function generateSku(name, category, size, color) {
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 3);
 
-  const szPart = size.trim().toUpperCase().replace(/\s+/g, "");
+  if (size.includes(",")) {
+    return ["TERA", namePart, catPart, colPart].filter(Boolean).join("-");
+  }
 
+  const szPart = size.trim().toUpperCase().replace(/\s+/g, "");
   return ["TERA", namePart, catPart, colPart, szPart].filter(Boolean).join("-");
 }
 
 document.querySelector("#productForm").addEventListener("input", (event) => {
   const form = event.currentTarget;
 
-  // Auto-generate SKU
   const name = form.name.value;
   const category = form.category.value;
-  const size = form.size.value;
+  const size = form.size ? form.size.value : selectedSizes.join(",");
   const color = form.color.value;
   if (form.sku && ["name", "category", "size", "color"].includes(event.target.name)) {
     form.sku.value = generateSku(name, category, size, color);
   }
 });
+
+setTimeout(initSizeSelector, 100);
 
 document.querySelector("#monthlyRevenueForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2222,8 +2375,8 @@ async function loadCategoryStocks() {
     let html = "";
     data.clothing.forEach(row => {
       html += `
-        <tr>
-          <td><strong>${row.category} - ${row.product_name}</strong></td>
+        <tr class="clickable-stock-row" data-id="${row.variant_id}" style="cursor: pointer;">
+          <td><strong>${row.category} - ${row.product_name}</strong> <span style="font-size:10px; color:var(--muted); margin-left:8px; font-weight:normal;">(klik detail)</span></td>
           <td style="text-align:right;">${number.format(row.online_qty)} pcs</td>
           <td style="text-align:right;">${number.format(row.offline_qty)} pcs</td>
           <td style="text-align:right;"><strong>${number.format(row.total_qty)} pcs</strong></td>

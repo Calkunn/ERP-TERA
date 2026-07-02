@@ -1925,20 +1925,58 @@ async function api(req, res) {
         productId = product.lastInsertRowid;
       }
 
-      const variant = await db.prepare(`
-        INSERT INTO variants (product_id, sku, size, color, cost_price, sell_price, low_stock)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        productId,
-        sku,
-        body.size || "All Size",
-        body.color || "Black",
-        Number(body.costPrice || 0),
-        Number(body.sellPrice || 0),
-        Number(body.lowStock || 5)
-      );
-      await changeStock(Number(variant.lastInsertRowid), 1, 0, "Initial Stock", "Tambah artikel baru");
-      await changeStock(Number(variant.lastInsertRowid), 2, 0, "Initial Stock", "Tambah artikel baru");
+      // Split sizes by comma
+      const sizesStr = String(body.size || "All Size");
+      const sizes = sizesStr.split(",").map(s => s.trim()).filter(Boolean);
+      
+      if (sizes.length === 0) {
+        sizes.push("All Size");
+      }
+
+      for (const size of sizes) {
+        // Generate variant SKU: if multiple sizes, append size suffix
+        let variantSku = sku;
+        if (sizes.length > 1) {
+          const suffix = `-${size.toUpperCase()}`;
+          if (!sku.endsWith(suffix)) {
+            variantSku = sku + suffix;
+          }
+        }
+
+        // Check if variant SKU already exists
+        const existingVariant = await db.prepare("SELECT id FROM variants WHERE sku = ?").get(variantSku);
+        if (existingVariant) {
+          await db.prepare(`
+            UPDATE variants 
+            SET product_id = ?, size = ?, color = ?, cost_price = ?, sell_price = ?, low_stock = ?
+            WHERE id = ?
+          `).run(
+            productId,
+            size,
+            body.color || "Black",
+            Number(body.costPrice || 0),
+            Number(body.sellPrice || 0),
+            Number(body.lowStock || 5),
+            existingVariant.id
+          );
+        } else {
+          const variant = await db.prepare(`
+            INSERT INTO variants (product_id, sku, size, color, cost_price, sell_price, low_stock)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            productId,
+            variantSku,
+            size,
+            body.color || "Black",
+            Number(body.costPrice || 0),
+            Number(body.sellPrice || 0),
+            Number(body.lowStock || 5)
+          );
+          await changeStock(Number(variant.lastInsertRowid), 1, 0, "Initial Stock", "Tambah artikel baru");
+          await changeStock(Number(variant.lastInsertRowid), 2, 0, "Initial Stock", "Tambah artikel baru");
+        }
+      }
+      
       await db.exec("COMMIT");
       return json(res, 201, { ok: true });
     } catch (error) {
@@ -1974,6 +2012,27 @@ async function api(req, res) {
         Number(body.lowStock || 5),
         variantId
       );
+
+      // Handle stock editing
+      if (body.onlineQty !== undefined) {
+        const newOnline = Number(body.onlineQty || 0);
+        const currentOnline = await db.prepare("SELECT qty FROM inventory_balances WHERE variant_id = ? AND pool_id = 1").get(variantId);
+        const oldOnline = currentOnline ? currentOnline.qty : 0;
+        const diff = newOnline - oldOnline;
+        if (diff !== 0) {
+          await changeStock(variantId, 1, diff, "Stock Adjustment", "Penyesuaian stok manual lewat detail produk");
+        }
+      }
+      if (body.offlineQty !== undefined) {
+        const newOffline = Number(body.offlineQty || 0);
+        const currentOffline = await db.prepare("SELECT qty FROM inventory_balances WHERE variant_id = ? AND pool_id = 2").get(variantId);
+        const oldOffline = currentOffline ? currentOffline.qty : 0;
+        const diff = newOffline - oldOffline;
+        if (diff !== 0) {
+          await changeStock(variantId, 2, diff, "Stock Adjustment", "Penyesuaian stok manual lewat detail produk");
+        }
+      }
+
       await db.exec("COMMIT");
       return json(res, 200, { ok: true });
     } catch (error) {
@@ -2379,7 +2438,7 @@ Keep your answers highly practical, actionable, and structured using markdown. K
   if (req.method === "GET" && url.pathname === "/api/inventory/categories") {
     try {
       const clothingStock = await db.prepare(`
-        SELECT p.category, p.name AS product_name, SUM(ib.qty) AS total_qty,
+        SELECT p.category, p.name AS product_name, MIN(v.id) AS variant_id, SUM(ib.qty) AS total_qty,
           SUM(CASE WHEN ip.name = 'Online Inventory' THEN ib.qty ELSE 0 END) AS online_qty,
           SUM(CASE WHEN ip.name = 'Offline Inventory' THEN ib.qty ELSE 0 END) AS offline_qty
         FROM inventory_balances ib
