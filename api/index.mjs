@@ -954,8 +954,10 @@ async function calculateKeuanganReports() {
     const cogs = cogsMap.get(m) || 0;
     const operatingIncome = totalRevenue - cogs;
     
-    // Gaji Karyawan = 98000 + 6% of Operating Income
-    const bayarDavid = 98000 + Math.round(operatingIncome * 0.06);
+    // Gaji Karyawan = Sum of inputted 'Gaji Karyawan' expenses for this month
+    const bayarDavid = monthExps
+      .filter(e => e.category === 'Gaji Karyawan')
+      .reduce((sum, e) => sum + e.amount, 0);
 
     const bahanKain = monthExps
       .filter(e => ['Bahan Baku', 'Purchase Order', 'Packaging', 'Hangtag', 'Produksi', 'Jasa Jahit', 'Sablon / Bordir'].includes(e.category))

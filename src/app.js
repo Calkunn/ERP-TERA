@@ -2128,8 +2128,8 @@ function renderIncomeStatement(data) {
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.otherCost)}</td>`).join("")}
     </tr>
     <tr>
-      <td>Gaji Karyawan <span class="formula-note">(98rb + 6% dr Operating Income)</span></td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.bayarDavid)} <span class="formula-note" style="text-align:right;">98rb + 6% dr OI</span></td>`).join("")}
+      <td>Gaji Karyawan</td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.bayarDavid)}</td>`).join("")}
     </tr>
     <tr class="total-row">
       <td>Net Income</td>
