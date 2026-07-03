@@ -202,11 +202,11 @@ summary {
 
 .nav {
   position: relative;
-  border: 0;
-  border-radius: 8px;
+  border: none !important;
+  border-radius: var(--radius-sm);
   padding: 10px 14px 10px 16px;
-  color: #8a8a93;
-  background: transparent;
+  color: rgba(255, 255, 255, 0.65) !important;
+  background: transparent !important;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -215,6 +215,8 @@ summary {
   font-weight: 600;
   cursor: pointer;
   width: 100%;
+  min-height: auto;
+  box-shadow: none !important;
   
   /* Bouncy Hover & Pressed Transition */
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1.15), 
@@ -229,20 +231,23 @@ summary {
 
 .nav:hover {
   color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.03);
-  transform: translateX(6px) scale(1.02);
+  background: rgba(255, 255, 255, 0.05) !important;
+  transform: translateX(4px);
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .nav:active {
-  transform: scale(0.96) translateX(4px);
+  transform: scale(0.96) translateX(2px);
 }
 
 .nav.active {
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.2);
+  color: #ffffff !important;
+  background: rgba(0, 0, 0, 0.25) !important;
   font-weight: 700;
-  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.4), inset -2px -2px 5px rgba(255, 255, 255, 0.05);
-  transform: translateX(4px);
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.02) !important;
+  border: none !important;
+  transform: translateX(2px);
 }
 
 .nav::before {
@@ -334,18 +339,25 @@ summary {
   border-radius: 6px;
   display: grid;
   place-items: center;
-  padding: 0;
+  padding: 0 !important;
   font-size: 14px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #ef4444 !important;
+  box-shadow: none !important;
   cursor: pointer;
 }
 
 .sidebar-user-section .icon-btn.danger:hover {
-  background: #ef4444;
-  border-color: #ef4444;
-  color: #ffffff;
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.sidebar-user-section .icon-btn.danger:active {
+  transform: scale(0.95);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.5) !important;
 }
 
 .sidebar-actions {
@@ -360,9 +372,9 @@ summary {
 }
 
 .sidebar-action-buttons .icon-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
   width: 32px;
   height: 32px;
   min-height: auto;
@@ -372,11 +384,18 @@ summary {
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
+  box-shadow: none !important;
 }
 
 .sidebar-action-buttons .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.sidebar-action-buttons .icon-btn:active {
+  transform: scale(0.95);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.5) !important;
 }
 
 .sidebar-version {
