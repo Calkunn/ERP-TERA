@@ -1,0 +1,24 @@
+{
+  "name": "TERA ERP",
+  "short_name": "TERA",
+  "description": "TERA Enterprise Resource Planning System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e222b",
+  "theme_color": "#ff7a00",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

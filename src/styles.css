@@ -2168,7 +2168,8 @@ body.dark .chart-detail-modal {
 .sheet-table {
   border-collapse: separate !important;
   border-spacing: 0 !important;
-  width: 100% !important;
+  width: auto !important;
+  min-width: max-content !important;
 }
 
 .sheet-table tr.header-row td {
@@ -2223,6 +2224,15 @@ body.dark .chart-detail-modal {
   html, body, .app-shell, main {
     overflow-x: hidden !important;
     max-width: 100vw !important;
+  }
+  
+  .sidebar {
+    overflow-x: hidden !important;
+  }
+  
+  .sidebar-nav {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
   }
   
   .sheet-container, .table-wrap {

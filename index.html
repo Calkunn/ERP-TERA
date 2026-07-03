@@ -2,12 +2,16 @@
 <html lang="id">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>TERA ERP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/styles.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icon-192.png">
   </head>
   <body>
     <section id="loginScreen" class="login-screen">
@@ -770,6 +774,21 @@
                 </div>
               </div>
             </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Aplikasi TERA Web App</h2>
+                <span class="hint">Install aplikasi TERA ERP di smartphone Anda</span>
+              </div>
+              <div class="stack" style="padding: 24px; gap: 16px;">
+                <p style="font-size: 13px; color: var(--muted); line-height: 1.6;">
+                  Jadikan TERA ERP sebagai Web App mandiri di Android atau iPhone untuk kemudahan akses langsung dari layar utama dan performa yang lebih optimal.
+                </p>
+                <button type="button" id="pwaInstallBtn" onclick="window.installPWA()" style="width: fit-content; padding: 10px 20px; font-weight: 800; border-radius: 8px; cursor: pointer;">
+                  📱 Install Aplikasi TERA
+                </button>
+              </div>
+            </section>
             
             <section class="panel" style="border-color: rgba(239, 68, 68, 0.25);">
               <div class="panel-head" style="border-bottom-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.02);">
@@ -1124,5 +1143,89 @@
     </script>
 
     <script type="module" src="/src/app.js"></script>
+
+    <!-- iOS INSTALLATION INSTRUCTIONS DIALOG -->
+    <dialog id="pwaIosInstructionsDialog">
+      <div class="dialog-card" style="padding: 24px; text-align: center; max-width: 480px; margin: auto;">
+        <div class="panel-head" style="justify-content: center; margin-bottom: 16px; border: none !important;">
+          <h2>Install TERA ERP di iPhone</h2>
+          <button type="button" class="icon-btn close-dialog" onclick="document.querySelector('#pwaIosInstructionsDialog').close()" style="position: absolute; right: 20px; top: 20px;">×</button>
+        </div>
+        <div class="stack" style="gap: 20px; font-size: 14px; text-align: left; line-height: 1.6;">
+          <p>Karena batasan sistem Apple iOS (iPhone/iPad), tombol install otomatis tidak dapat mendeteksi Safari. Ikuti 3 langkah mudah berikut untuk menambahkan aplikasi ke layar utama Anda:</p>
+          
+          <div style="display: flex; gap: 12px; align-items: flex-start; background: var(--soft-primary); padding: 12px; border-radius: 10px;">
+            <span style="font-weight: 800; color: var(--accent); font-size: 18px;">1.</span>
+            <div>
+              <strong>Buka di Safari</strong>, lalu ketuk tombol <strong>Share (Bagikan)</strong> <span style="font-size: 18px;">📤</span> di bagian bawah layar Safari Anda.
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 12px; align-items: flex-start; background: var(--soft-primary); padding: 12px; border-radius: 10px;">
+            <span style="font-weight: 800; color: var(--accent); font-size: 18px;">2.</span>
+            <div>
+              Gulir ke bawah pada menu yang muncul, lalu pilih <strong>Add to Home Screen (Tambah ke Layar Utama)</strong> <span style="font-size: 18px;">➕</span>.
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 12px; align-items: flex-start; background: var(--soft-primary); padding: 12px; border-radius: 10px;">
+            <span style="font-weight: 800; color: var(--accent); font-size: 18px;">3.</span>
+            <div>
+              Ketuk tombol <strong>Add (Tambah)</strong> di sudut kanan atas layar. Aplikasi TERA ERP akan langsung terpasang di Home Screen iPhone Anda!
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 24px;">
+          <button type="button" class="primary" onclick="document.querySelector('#pwaIosInstructionsDialog').close()" style="padding: 10px 24px; width: auto; font-weight: 700; border-radius: 8px;">Selesai</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- PWA Registration & Install script -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js")
+            .then(reg => console.log("Service Worker registered!", reg))
+            .catch(err => console.log("Service Worker registration failed: ", err));
+        });
+      }
+
+      // Handle PWA installation trigger
+      let deferredPrompt;
+      window.addEventListener("beforeinstallprompt", (e) => {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        deferredPrompt = e;
+      });
+
+      window.addEventListener("appinstalled", (evt) => {
+        console.log("TERA ERP was installed.");
+      });
+      
+      // Global function to trigger PWA installation
+      window.installPWA = function() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === "accepted") {
+              console.log("User accepted the install prompt");
+            } else {
+              console.log("User dismissed the install prompt");
+            }
+            deferredPrompt = null;
+          });
+        } else {
+          // Fallback instructions for iOS or non-supported browsers
+          const dialog = document.querySelector("#pwaIosInstructionsDialog");
+          if (dialog) {
+            dialog.showModal();
+          } else {
+            alert("Untuk menginstall aplikasi TERA ERP:\n\n1. Di Android/Chrome: Pastikan menggunakan Chrome/Edge, lalu pilih opsi install di browser.\n2. Di iPhone/Safari: Ketuk tombol 'Share' (Bagikan) di bagian bawah Safari, lalu pilih 'Add to Home Screen' (Tambah ke Layar Utama).");
+          }
+        }
+      };
+    </script>
   </body>
 </html>
