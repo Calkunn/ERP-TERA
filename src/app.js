@@ -103,7 +103,7 @@ function chartColors() {
     online: dark ? "#6366f1" : "#4f46e5",
     offline: dark ? "#f43f5e" : "#e11d48",
     amber: dark ? "#fbbf24" : "#d97706",
-    panel: dark ? "#1d212a" : "#eef2f7"
+    panel: dark ? "#1e222b" : "#fcfaf7"
   };
 }
 

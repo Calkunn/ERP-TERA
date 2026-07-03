@@ -26,8 +26,8 @@
 }
 
 body.dark {
-  --bg: #141517;
-  --panel: #141517;
+  --bg: #1e222b;
+  --panel: #1e222b;
   --ink: #f4f4f5;
   --muted: #9ca3af;
   --line: rgba(255, 255, 255, 0.04);
@@ -38,8 +38,8 @@ body.dark {
   --soft-primary: rgba(255, 122, 0, 0.1);
   --soft-secondary: rgba(255, 255, 255, 0.08);
   --soft-tertiary: rgba(12, 12, 18, 0.6);
-  --shadow: -8px -8px 20px rgba(255, 255, 255, 0.02), 8px 8px 20px rgba(0, 0, 0, 0.55), inset 1px 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow-inset: inset -4px -4px 10px rgba(255, 255, 255, 0.02), inset 4px 4px 10px rgba(0, 0, 0, 0.55);
+  --shadow: -8px -8px 20px rgba(255, 255, 255, 0.05), 8px 8px 20px rgba(0, 0, 0, 0.5), inset 1px 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-inset: inset -4px -4px 10px rgba(255, 255, 255, 0.04), inset 4px 4px 10px rgba(0, 0, 0, 0.5);
 }
 
 * { 
