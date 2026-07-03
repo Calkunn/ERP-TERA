@@ -378,13 +378,96 @@ async function loadDashboard() {
   // Draw stock as a line chart now
   drawArticleStockLineChart("articleStockChart", data.stockByArticle);
 
-  table("#lowStockTable", [
-    { label: "SKU", key: "sku" },
-    { label: "Artikel", key: "name" },
-    { label: "Pool", key: "pool" },
-    { label: "Sisa", render: (r) => `<span class="badge warn">${r.qty}</span>` },
-    { label: "Min", key: "low_stock" }
-  ], data.lowStock);
+  const lowStockTableEl = document.querySelector("#lowStockTable");
+  if (lowStockTableEl) {
+    const lowStockColumns = [
+      { label: "", width: "50px" },
+      { label: "SKU" },
+      { label: "Artikel" },
+      { label: "Pool" },
+      { label: "Sisa" },
+      { label: "Min" }
+    ];
+
+    let theadHtml = `<thead><tr>${lowStockColumns.map((c) => `<th style="${c.width ? `width:${c.width};` : ''}">${c.label}</th>`).join("")}</tr></thead>`;
+    let tbodyHtml = "";
+
+    if (data.lowStock.length === 0) {
+      tbodyHtml = `<tbody><tr><td colspan="${lowStockColumns.length}">Belum ada data</td></tr></tbody>`;
+      lowStockTableEl.innerHTML = theadHtml + tbodyHtml;
+    } else {
+      const lowStockGroups = {};
+      data.lowStock.forEach(r => {
+        const key = r.product_id || r.name;
+        if (!lowStockGroups[key]) {
+          lowStockGroups[key] = {
+            product_id: r.product_id,
+            name: r.name,
+            variants: []
+          };
+        }
+        lowStockGroups[key].variants.push(r);
+      });
+
+      tbodyHtml += "<tbody>";
+
+      Object.values(lowStockGroups).forEach(group => {
+        const baseSku = group.variants[0].sku.replace(/-[^-]+$/, "");
+        const totalSisa = group.variants.reduce((sum, v) => sum + Number(v.qty || 0), 0);
+        const pools = [...new Set(group.variants.map(v => v.pool.replace(" Inventory", "")))].join(", ");
+        const minStock = Math.min(...group.variants.map(v => v.low_stock));
+        const maxStock = Math.max(...group.variants.map(v => v.low_stock));
+        const minStr = minStock === maxStock ? minStock : `${minStock} - ${maxStock}`;
+
+        tbodyHtml += `
+          <tr class="lowstock-parent-row" data-id="${group.product_id || group.name}" style="cursor: pointer; background-color: var(--soft-primary); font-weight: 600;">
+            <td style="text-align: center; font-size: 11px; color: var(--accent);" class="expand-indicator">▶</td>
+            <td>${baseSku}</td>
+            <td>${group.name}</td>
+            <td style="color: var(--muted); font-size: 11px;">${pools}</td>
+            <td><span class="badge warn">${totalSisa} pcs</span></td>
+            <td>${minStr}</td>
+          </tr>
+        `;
+
+        group.variants.forEach(v => {
+          tbodyHtml += `
+            <tr class="lowstock-child-row hidden child-of-lowstock-${group.product_id || group.name}" style="background-color: var(--card); border-left: 4px solid var(--accent);">
+              <td style="text-align: center;"></td>
+              <td style="padding-left: 15px;">${v.sku} (<strong>${v.size}</strong>/${v.color})</td>
+              <td style="color: var(--muted);">${v.name}</td>
+              <td>${badge(v.pool)}</td>
+              <td><span class="badge warn">${v.qty}</span></td>
+              <td>${v.low_stock}</td>
+            </tr>
+          `;
+        });
+      });
+
+      tbodyHtml += "</tbody>";
+      lowStockTableEl.innerHTML = theadHtml + tbodyHtml;
+
+      lowStockTableEl.querySelectorAll(".lowstock-parent-row").forEach(pRow => {
+        pRow.addEventListener("click", (e) => {
+          const parentId = pRow.dataset.id;
+          const indicator = pRow.querySelector(".expand-indicator");
+          const childRows = lowStockTableEl.querySelectorAll(`.child-of-lowstock-${parentId}`);
+          
+          const isHidden = childRows[0]?.classList.contains("hidden");
+          childRows.forEach(cRow => {
+            if (isHidden) {
+              cRow.classList.remove("hidden");
+            } else {
+              cRow.classList.add("hidden");
+            }
+          });
+          if (indicator) {
+            indicator.textContent = isHidden ? "▼" : "▶";
+          }
+        });
+      });
+    }
+  }
 }
 
 async function loadProducts() {
