@@ -467,7 +467,7 @@ h2 {
 }
 
 .metric, .panel {
-  border: 1px solid var(--line);
+  border: none;
   border-radius: var(--radius-md);
   background: var(--panel);
   box-shadow: var(--shadow);
