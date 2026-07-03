@@ -742,7 +742,7 @@ async function dashboard() {
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
-    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris')
+    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris') AND p.status != 'Archived'
     GROUP BY ip.id, ip.name
   `).all();
   const stockByArticle = await db.prepare(`
@@ -753,7 +753,7 @@ async function dashboard() {
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
-    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris')
+    WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris') AND p.status != 'Archived'
     GROUP BY p.id, p.name
     ORDER BY total_qty DESC
   `).all();
@@ -763,7 +763,7 @@ async function dashboard() {
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
     JOIN inventory_pools ip ON ip.id = ib.pool_id
-    WHERE ib.qty <= v.low_stock
+    WHERE ib.qty <= v.low_stock AND p.status != 'Archived'
     ORDER BY ib.qty ASC
   `).all();
   const monthlyRevenue = await db.prepare(`
@@ -1206,6 +1206,7 @@ async function getAiContext() {
     FROM inventory_balances ib
     JOIN variants v ON v.id = ib.variant_id
     JOIN products p ON p.id = v.product_id
+    WHERE p.status != 'Archived'
     GROUP BY p.name, p.category, v.sku, v.size, v.color, v.low_stock
   `).all();
 
@@ -2407,10 +2408,12 @@ Keep your answers highly practical, actionable, and structured using markdown. K
 `;
 
       let history = [];
+      let userMsgId = null;
       if (body.sessionId) {
         // Save user message in DB
-        await db.prepare("INSERT INTO ai_chat_messages (session_id, role, message) VALUES (?, 'user', ?)")
+        const result = await db.prepare("INSERT INTO ai_chat_messages (session_id, role, message) VALUES (?, 'user', ?)")
           .run(body.sessionId, body.message);
+        userMsgId = result.lastInsertRowid;
         
         // Fetch history
         const rows = await db.prepare("SELECT role, message FROM ai_chat_messages WHERE session_id = ? ORDER BY id ASC")
@@ -2425,7 +2428,15 @@ Keep your answers highly practical, actionable, and structured using markdown. K
         history = body.history || [];
       }
 
-      const text = await callGemini(systemInstruction, body.message, history);
+      let text;
+      try {
+        text = await callGemini(systemInstruction, body.message, history);
+      } catch (geminiError) {
+        if (body.sessionId && userMsgId) {
+          await db.prepare("DELETE FROM ai_chat_messages WHERE id = ?").run(userMsgId);
+        }
+        throw geminiError;
+      }
 
       if (body.sessionId) {
         // Save AI response in DB
@@ -2505,7 +2516,7 @@ Keep your answers highly practical, actionable, and structured using markdown. K
         JOIN variants v ON v.id = ib.variant_id
         JOIN products p ON p.id = v.product_id
         JOIN inventory_pools ip ON ip.id = ib.pool_id
-        WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag')
+        WHERE p.category NOT IN ('Bahan Baku', 'Aksesoris', 'Packaging', 'Hangtag') AND p.status != 'Archived'
         GROUP BY p.category, p.name
         ORDER BY p.category ASC, p.name ASC
       `).all();
