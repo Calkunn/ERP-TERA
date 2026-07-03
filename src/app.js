@@ -3158,9 +3158,7 @@ document.querySelector("#aiChatSessionsList")?.addEventListener("click", (e) => 
 window.renderDashboardCharts = function() {
   if (!window.dashboardData) return;
   const data = window.dashboardData;
-  const salesData = chartDetailStates.sales 
-    ? data.monthlyRevenue 
-    : data.monthlyRevenue.slice(-12);
+  const salesData = data.monthlyRevenue.slice(-12); // Always max 12 months inline
     
   drawLineChart("salesChart", salesData, {
     label: (row) => monthName(row.month),
@@ -3178,9 +3176,7 @@ window.renderRevenueCompareChart = function() {
   if (!window.monthlyRevenueRowsData) return;
   const rows = window.monthlyRevenueRowsData;
   const baseRows = [...rows].reverse();
-  const chartRows = chartDetailStates.revenueCompare 
-    ? baseRows 
-    : baseRows.slice(-12);
+  const chartRows = baseRows.slice(-12); // Always max 12 months inline
     
   drawLineChart("revenueCompareChart", chartRows, {
     label: (row) => monthName(row.month),
@@ -3195,9 +3191,7 @@ window.renderProfitChart = function() {
   if (!window.profitChartData) return;
   const profits = window.profitChartData;
   const baseRows = [...profits].reverse();
-  const chartRows = chartDetailStates.profit 
-    ? baseRows 
-    : baseRows.slice(-12);
+  const chartRows = baseRows.slice(-12); // Always max 12 months inline
     
   drawLineChart("profitChart", chartRows, {
     label: (row) => monthName(row.month),
@@ -3209,22 +3203,70 @@ window.renderProfitChart = function() {
   });
 };
 
-// Global click delegation for chart toggle buttons
+// Open Full-screen Modal and draw detailed charts
+window.showFullScreenChart = function(chartType) {
+  const modal = document.querySelector("#chartDetailModal");
+  const modalTitle = document.querySelector("#modalChartTitle");
+  
+  if (!modal) return;
+  
+  modal.style.display = "flex";
+  modal.classList.remove("hidden");
+  
+  if (chartType === "sales") {
+    modalTitle.textContent = "Detail Grafik Penjualan Bulanan (Semua Data)";
+    if (window.dashboardData) {
+      drawLineChart("modalChartCanvas", window.dashboardData.monthlyRevenue, {
+        label: (row) => monthName(row.month),
+        series: [
+          { key: "online_revenue", label: "Online", color: chartColors().online },
+          { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+        ]
+      });
+    }
+  } else if (chartType === "revenueCompare") {
+    modalTitle.textContent = "Detail Perbandingan Pendapatan Bulanan (Semua Data)";
+    if (window.monthlyRevenueRowsData) {
+      const baseRows = [...window.monthlyRevenueRowsData].reverse();
+      drawLineChart("modalChartCanvas", baseRows, {
+        label: (row) => monthName(row.month),
+        series: [
+          { key: "online_revenue", label: "Online", color: chartColors().online },
+          { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+        ]
+      });
+    }
+  } else if (chartType === "profit") {
+    modalTitle.textContent = "Detail Arus Kas Bulanan / Cash Flow (Semua Data)";
+    if (window.profitChartData) {
+      const baseRows = [...window.profitChartData].reverse();
+      drawLineChart("modalChartCanvas", baseRows, {
+        label: (row) => monthName(row.month),
+        series: [
+          { key: "revenue", label: "Pemasukan", color: chartColors().online },
+          { key: "expense", label: "Pengeluaran", color: chartColors().offline },
+          { key: "profit", label: "Profit", color: chartColors().amber }
+        ]
+      });
+    }
+  }
+};
+
+// Global click delegation for Detail buttons and Modal closing
 document.addEventListener("click", (e) => {
   const toggleBtn = e.target.closest(".toggle-chart-detail");
   if (toggleBtn) {
     const chartType = toggleBtn.dataset.chart;
-    chartDetailStates[chartType] = !chartDetailStates[chartType];
-    
-    toggleBtn.textContent = chartDetailStates[chartType] ? "Sederhanakan" : "Detail";
-    toggleBtn.classList.toggle("ghost", !chartDetailStates[chartType]);
-    
-    if (chartType === "sales") {
-      window.renderDashboardCharts();
-    } else if (chartType === "revenueCompare") {
-      window.renderRevenueCompareChart();
-    } else if (chartType === "profit") {
-      window.renderProfitChart();
+    window.showFullScreenChart(chartType);
+  }
+  
+  // Close Modal buttons
+  const closeBtn = e.target.closest("#closeChartModalBtn");
+  const modal = document.querySelector("#chartDetailModal");
+  if (closeBtn || (modal && e.target === modal)) {
+    if (modal) {
+      modal.style.display = "none";
+      modal.classList.add("hidden");
     }
   }
 });

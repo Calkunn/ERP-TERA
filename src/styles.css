@@ -1,17 +1,17 @@
 :root {
-  --bg: #f3f4f6;
-  --panel: rgba(255, 255, 255, 0.45);
+  --bg: #f3f5f8;
+  --panel: rgba(255, 255, 255, 0.32);
   --ink: #09090b;
-  --muted: #71717a;
-  --line: rgba(228, 228, 231, 0.5);
-  --sidebar: rgba(15, 15, 20, 0.85);
+  --muted: #6b7280;
+  --line: rgba(255, 255, 255, 0.45);
+  --sidebar: rgba(15, 15, 22, 0.88);
   --primary: #09090b;
-  --secondary: #27272a;
-  --tertiary: #71717a;
-  --soft-primary: rgba(244, 244, 245, 0.6);
-  --soft-secondary: rgba(228, 228, 231, 0.6);
-  --soft-tertiary: rgba(250, 250, 250, 0.5);
-  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04), 0 1px 4px 0 rgba(0, 0, 0, 0.02);
+  --secondary: #374151;
+  --tertiary: #6b7280;
+  --soft-primary: rgba(255, 255, 255, 0.35);
+  --soft-secondary: rgba(255, 255, 255, 0.25);
+  --soft-tertiary: rgba(255, 255, 255, 0.55);
+  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.06), 0 1px 4px 0 rgba(0, 0, 0, 0.02);
   
   /* Amber Accent System */
   --accent: #f59e0b;
@@ -25,19 +25,19 @@
 }
 
 body.dark {
-  --bg: #09090b;
-  --panel: rgba(18, 18, 22, 0.65);
+  --bg: #090a0f;
+  --panel: rgba(20, 20, 28, 0.52);
   --ink: #f4f4f5;
-  --muted: #a1a1aa;
+  --muted: #9ca3af;
   --line: rgba(255, 255, 255, 0.08);
-  --sidebar: rgba(10, 10, 12, 0.85);
+  --sidebar: rgba(10, 11, 16, 0.88);
   --primary: #f4f4f5;
-  --secondary: #a1a1aa;
-  --tertiary: #52525b;
-  --soft-primary: rgba(26, 26, 30, 0.7);
-  --soft-secondary: rgba(39, 39, 42, 0.7);
-  --soft-tertiary: rgba(12, 12, 14, 0.6);
-  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), 0 1px 4px 0 rgba(0, 0, 0, 0.2);
+  --secondary: #9ca3af;
+  --tertiary: #6b7280;
+  --soft-primary: rgba(255, 255, 255, 0.04);
+  --soft-secondary: rgba(255, 255, 255, 0.08);
+  --soft-tertiary: rgba(12, 12, 18, 0.6);
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), 0 1px 4px 0 rgba(0, 0, 0, 0.25);
 }
 
 * { 
@@ -66,39 +66,39 @@ html, body {
   overflow-x: hidden; /* Prevent horizontal scroll from hidden drawers */
 }
 
-/* Ambient Background Orbs */
+/* Ambient Background Orbs (Vibrant colors to shine through frosted glass) */
 body::before, body::after {
   content: "";
   position: fixed;
-  width: 60vw;
-  height: 60vw;
-  max-width: 600px;
-  max-height: 600px;
+  width: 70vw;
+  height: 70vw;
+  max-width: 700px;
+  max-height: 700px;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(130px);
   z-index: -2;
   pointer-events: none;
   transition: opacity 0.5s ease;
 }
 
 body::before {
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);
-  left: -10%;
-  top: -10%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, transparent 70%);
+  left: -15%;
+  top: -15%;
 }
 
 body::after {
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
-  right: -10%;
-  bottom: -10%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+  right: -15%;
+  bottom: -15%;
 }
 
 body.dark::before {
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, transparent 70%);
 }
 
 body.dark::after {
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, transparent 70%);
 }
 
 body {
@@ -106,9 +106,9 @@ body {
   color: var(--ink);
   background-color: var(--bg);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.04) 0px, transparent 50%), 
-    radial-gradient(at 50% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%), 
-    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.04) 0px, transparent 50%);
+    radial-gradient(at 5% 5%, rgba(245, 158, 11, 0.12) 0px, transparent 55%), 
+    radial-gradient(at 50% 10%, rgba(99, 102, 241, 0.12) 0px, transparent 55%), 
+    radial-gradient(at 95% 5%, rgba(236, 72, 153, 0.12) 0px, transparent 55%);
   background-attachment: fixed;
   background-size: cover;
   font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, sans-serif;
@@ -118,9 +118,9 @@ body {
 
 body.dark {
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.06) 0px, transparent 50%), 
-    radial-gradient(at 50% 0%, rgba(99, 102, 241, 0.06) 0px, transparent 50%), 
-    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.06) 0px, transparent 50%);
+    radial-gradient(at 5% 5%, rgba(245, 158, 11, 0.18) 0px, transparent 55%), 
+    radial-gradient(at 50% 10%, rgba(99, 102, 241, 0.18) 0px, transparent 55%), 
+    radial-gradient(at 95% 5%, rgba(236, 72, 153, 0.18) 0px, transparent 55%);
 }
 
 .hidden { display: none !important; }
