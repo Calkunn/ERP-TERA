@@ -103,7 +103,7 @@ function chartColors() {
     online: dark ? "#6366f1" : "#4f46e5",
     offline: dark ? "#f43f5e" : "#e11d48",
     amber: dark ? "#fbbf24" : "#d97706",
-    panel: dark ? "rgba(20, 21, 28, 0.85)" : "rgba(255, 255, 255, 0.82)"
+    panel: dark ? "#1d212a" : "#eef2f7"
   };
 }
 
