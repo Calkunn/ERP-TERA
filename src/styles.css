@@ -1,9 +1,9 @@
 :root {
   --bg: #f3f5f8;
-  --panel: rgba(255, 255, 255, 0.22);
+  --panel: rgba(255, 255, 255, 0.28);
   --ink: #09090b;
   --muted: #6b7280;
-  --line: rgba(9, 9, 11, 0.15);
+  --line: rgba(9, 9, 11, 0.08);
   --sidebar: rgba(15, 15, 22, 0.88);
   --primary: #09090b;
   --secondary: #374151;
@@ -11,7 +11,8 @@
   --soft-primary: rgba(255, 255, 255, 0.35);
   --soft-secondary: rgba(255, 255, 255, 0.25);
   --soft-tertiary: rgba(255, 255, 255, 0.55);
-  --shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.8), 0 8px 32px rgba(31, 38, 135, 0.03), 0 1px 4px rgba(0, 0, 0, 0.01);
+  --shadow: -6px -6px 14px rgba(255, 255, 255, 0.7), 6px 6px 14px rgba(163, 177, 198, 0.25), inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.6);
+  --shadow-inset: inset 3px 3px 6px rgba(163, 177, 198, 0.25), inset -3px -3px 6px rgba(255, 255, 255, 0.7);
   
   /* Amber Accent System */
   --accent: #f59e0b;
@@ -29,7 +30,7 @@ body.dark {
   --panel: rgba(10, 11, 16, 0.45);
   --ink: #f4f4f5;
   --muted: #9ca3af;
-  --line: rgba(255, 255, 255, 0.15);
+  --line: rgba(255, 255, 255, 0.08);
   --sidebar: rgba(10, 11, 16, 0.88);
   --primary: #f4f4f5;
   --secondary: #9ca3af;
@@ -37,7 +38,8 @@ body.dark {
   --soft-primary: rgba(255, 255, 255, 0.04);
   --soft-secondary: rgba(255, 255, 255, 0.08);
   --soft-tertiary: rgba(12, 12, 18, 0.6);
-  --shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow: -6px -6px 14px rgba(255, 255, 255, 0.02), 6px 6px 14px rgba(0, 0, 0, 0.45), inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.08);
+  --shadow-inset: inset 3px 3px 6px rgba(0, 0, 0, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.02);
 }
 
 * { 
@@ -646,11 +648,12 @@ input, select {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--ink);
   font: inherit;
+  box-shadow: var(--shadow-inset);
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s;
 }
 
@@ -698,11 +701,11 @@ input::placeholder {
 button {
   width: 100%;
   min-height: 40px;
-  border: none;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  background: var(--primary);
-  color: var(--bg);
+  background: var(--panel);
+  color: var(--ink);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -710,20 +713,28 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-  transition: transform 0.1s, opacity 0.15s;
-}
-
-body.dark button {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
+  transition: transform 0.1s, box-shadow 0.2s, background-color 0.2s;
 }
 
 button:hover {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  border-color: var(--accent);
 }
 
 button:active {
-  transform: scale(0.97);
+  transform: scale(0.97) translateY(0);
+  box-shadow: var(--shadow-inset);
+}
+
+button[type="submit"], button.primary {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  border: 1px solid var(--accent-hover) !important;
+}
+
+button[type="submit"]:hover, button.primary:hover {
+  background: var(--accent-hover) !important;
 }
 
 .ghost, .icon-btn, .mini, .soft, button.soft {
@@ -747,6 +758,7 @@ body.dark .ghost:hover, body.dark .icon-btn:hover, body.dark .mini:hover, body.d
 
 .ghost:active, .icon-btn:active, .mini:active, .soft:active, button.soft:active {
   transform: scale(0.97);
+  box-shadow: var(--shadow-inset) !important;
 }
 
 .icon-btn {
@@ -1945,7 +1957,7 @@ body.dark .cash-highlight {
 /* Custom Size Selector Dropdown Styling (Frosted Glass & Clean) */
 .size-select-btn {
   padding: 10px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   font-size: 13px;
@@ -1957,6 +1969,7 @@ body.dark .cash-highlight {
   color: var(--ink);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-inset);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
