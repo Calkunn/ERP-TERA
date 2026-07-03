@@ -2089,7 +2089,8 @@ function initSizeSelector() {
     if (alphaContainer) {
       alphaContainer.innerHTML = alphaSizes.map(sz => {
         const isSelected = selectedSizes.includes(sz);
-        return `<span class="size-chip" data-size="${sz}" style="${getChipStyle(isSelected)}">${sz}</span>`;
+        const activeClass = isSelected ? "selected" : "";
+        return `<span class="size-chip ${activeClass}" data-size="${sz}">${sz}</span>`;
       }).join("");
     }
 
@@ -2097,7 +2098,8 @@ function initSizeSelector() {
     if (numericContainer) {
       numericContainer.innerHTML = numericSizes.map(sz => {
         const isSelected = selectedSizes.includes(sz);
-        return `<span class="size-chip" data-size="${sz}" style="${getChipStyle(isSelected)}">${sz}</span>`;
+        const activeClass = isSelected ? "selected" : "";
+        return `<span class="size-chip ${activeClass}" data-size="${sz}">${sz}</span>`;
       }).join("");
     }
 
@@ -2118,13 +2120,6 @@ function initSizeSelector() {
       });
     });
   };
-
-  function getChipStyle(isSelected) {
-    if (isSelected) {
-      return "border: 1px solid var(--accent); background: var(--soft-primary); color: var(--accent); font-weight: 600; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; display: inline-block; margin: 2px 0;";
-    }
-    return "border: 1px solid var(--line); background: white; color: var(--foreground); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; display: inline-block; margin: 2px 0;";
-  }
 
   window.updateSelectedUI = function() {
     if (sizeHiddenInput) {
