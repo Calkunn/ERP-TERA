@@ -97,13 +97,13 @@ function monthName(month) {
 function chartColors() {
   const dark = document.body.classList.contains("dark");
   return {
-    text: dark ? "#f4f4f5" : "#09090b",
-    muted: dark ? "#71717a" : "#71717a",
-    line: dark ? "#1f1f23" : "#e4e4e7",
-    online: dark ? "#f4f4f5" : "#09090b", // Monochrome main
-    offline: dark ? "#71717a" : "#71717a", // Monochrome secondary
-    amber: dark ? "#f59e0b" : "#d97706", // Accent amber
-    panel: dark ? "#111113" : "#ffffff"
+    text: dark ? "#f4f4f5" : "#1f2937",
+    muted: dark ? "#9ca3af" : "#4b5563",
+    line: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(9, 9, 11, 0.12)",
+    online: dark ? "#6366f1" : "#4f46e5",
+    offline: dark ? "#f43f5e" : "#e11d48",
+    amber: dark ? "#fbbf24" : "#d97706",
+    panel: dark ? "rgba(20, 21, 28, 0.85)" : "rgba(255, 255, 255, 0.82)"
   };
 }
 
