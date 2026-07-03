@@ -1926,7 +1926,7 @@ dialog[open]::backdrop {
 }
 
 .sheet-table tr.header-row {
-  background: var(--soft-primary);
+  background: transparent !important;
   font-weight: 800;
 }
 
@@ -1934,13 +1934,13 @@ dialog[open]::backdrop {
   font-size: 13px;
   text-transform: uppercase;
   color: var(--ink);
-  border-bottom: 2px solid var(--primary);
   padding-top: 14px;
   padding-bottom: 14px;
+  background: var(--soft-primary) !important;
 }
 
 .sheet-table tr.total-row {
-  background: var(--soft-tertiary);
+  background: transparent !important;
   font-weight: 700;
 }
 
@@ -1949,6 +1949,30 @@ dialog[open]::backdrop {
   border-bottom: 2px solid var(--line);
   font-size: 13px;
   color: var(--ink);
+  background: var(--soft-tertiary) !important;
+}
+
+/* Round intermediate headers and total rows nicely */
+.sheet-table tr.total-row td:first-child,
+.sheet-table tr[style*="background"] td:first-child {
+  border-top-left-radius: 8px !important;
+  border-bottom-left-radius: 8px !important;
+}
+
+.sheet-table tr.total-row td:last-child,
+.sheet-table tr[style*="background"] td:last-child {
+  border-top-right-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+}
+
+/* Ensure background transitions from row to cell for inline backgrounds */
+.sheet-table tr[style*="background"] {
+  background: transparent !important;
+}
+
+.sheet-table tr[style*="background"] td {
+  background: var(--soft-tertiary) !important;
+  font-weight: 700 !important;
 }
 
 .sheet-table tr.highlight-row {
