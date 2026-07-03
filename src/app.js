@@ -3213,43 +3213,52 @@ window.showFullScreenChart = function(chartType) {
   modal.style.display = "flex";
   modal.classList.remove("hidden");
   
-  if (chartType === "sales") {
-    modalTitle.textContent = "Detail Grafik Penjualan Bulanan (Semua Data)";
-    if (window.dashboardData) {
-      drawLineChart("modalChartCanvas", window.dashboardData.monthlyRevenue, {
-        label: (row) => monthName(row.month),
-        series: [
-          { key: "online_revenue", label: "Online", color: chartColors().online },
-          { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-        ]
-      });
-    }
-  } else if (chartType === "revenueCompare") {
-    modalTitle.textContent = "Detail Perbandingan Pendapatan Bulanan (Semua Data)";
-    if (window.monthlyRevenueRowsData) {
-      const baseRows = [...window.monthlyRevenueRowsData].reverse();
-      drawLineChart("modalChartCanvas", baseRows, {
-        label: (row) => monthName(row.month),
-        series: [
-          { key: "online_revenue", label: "Online", color: chartColors().online },
-          { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-        ]
-      });
-    }
-  } else if (chartType === "profit") {
-    modalTitle.textContent = "Detail Arus Kas Bulanan / Cash Flow (Semua Data)";
-    if (window.profitChartData) {
-      const baseRows = [...window.profitChartData].reverse();
-      drawLineChart("modalChartCanvas", baseRows, {
-        label: (row) => monthName(row.month),
-        series: [
-          { key: "revenue", label: "Pemasukan", color: chartColors().online },
-          { key: "expense", label: "Pengeluaran", color: chartColors().offline },
-          { key: "profit", label: "Profit", color: chartColors().amber }
-        ]
-      });
-    }
+  // Set height attribute of canvas dynamically to match high-resolution pop-up display
+  const canvas = document.querySelector("#modalChartCanvas");
+  if (canvas) {
+    canvas.setAttribute("height", "450");
   }
+  
+  // Wait for modal display layout styling to settle before calculating canvas sizes
+  setTimeout(() => {
+    if (chartType === "sales") {
+      modalTitle.textContent = "Detail Grafik Penjualan Bulanan (Semua Data)";
+      if (window.dashboardData) {
+        drawLineChart("modalChartCanvas", window.dashboardData.monthlyRevenue, {
+          label: (row) => monthName(row.month),
+          series: [
+            { key: "online_revenue", label: "Online", color: chartColors().online },
+            { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+          ]
+        });
+      }
+    } else if (chartType === "revenueCompare") {
+      modalTitle.textContent = "Detail Perbandingan Pendapatan Bulanan (Semua Data)";
+      if (window.monthlyRevenueRowsData) {
+        const baseRows = [...window.monthlyRevenueRowsData].reverse();
+        drawLineChart("modalChartCanvas", baseRows, {
+          label: (row) => monthName(row.month),
+          series: [
+            { key: "online_revenue", label: "Online", color: chartColors().online },
+            { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+          ]
+        });
+      }
+    } else if (chartType === "profit") {
+      modalTitle.textContent = "Detail Arus Kas Bulanan / Cash Flow (Semua Data)";
+      if (window.profitChartData) {
+        const baseRows = [...window.profitChartData].reverse();
+        drawLineChart("modalChartCanvas", baseRows, {
+          label: (row) => monthName(row.month),
+          series: [
+            { key: "revenue", label: "Pemasukan", color: chartColors().online },
+            { key: "expense", label: "Pengeluaran", color: chartColors().offline },
+            { key: "profit", label: "Profit", color: chartColors().amber }
+          ]
+        });
+      }
+    }
+  }, 50);
 };
 
 // Global click delegation for Detail buttons and Modal closing
