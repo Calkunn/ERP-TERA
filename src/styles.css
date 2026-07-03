@@ -725,15 +725,42 @@ button:active {
   box-shadow: var(--shadow-inset);
 }
 
-button[type="submit"], button.primary {
+button[type="submit"], 
+button.primary, 
+button.btn.primary, 
+#btnCustomSizeAdd, 
+#sizeSelectDoneBtn, 
+#refreshInsightsBtn, 
+#sendAiChatBtn {
   background: var(--accent) !important;
-  color: #ffffff !important;
+  color: #000000 !important;
   border: 1px solid var(--accent-hover) !important;
   font-weight: 700 !important;
+  box-shadow: var(--shadow) !important;
 }
 
-button[type="submit"]:hover, button.primary:hover {
+button[type="submit"]:hover, 
+button.primary:hover, 
+button.btn.primary:hover, 
+#btnCustomSizeAdd:hover, 
+#sizeSelectDoneBtn:hover, 
+#refreshInsightsBtn:hover, 
+#sendAiChatBtn:hover {
   background: var(--accent-hover) !important;
+  color: #000000 !important;
+}
+
+button[type="submit"]:active, 
+button.primary:active, 
+button.btn.primary:active, 
+#btnCustomSizeAdd:active, 
+#sizeSelectDoneBtn:active, 
+#refreshInsightsBtn:active, 
+#sendAiChatBtn:active {
+  background: var(--accent-hover) !important;
+  color: #000000 !important;
+  box-shadow: var(--shadow-inset) !important;
+  transform: scale(0.97) translateY(0) !important;
 }
 
 .ghost, .icon-btn, .mini, .soft, button.soft {
@@ -2047,7 +2074,7 @@ body.dark .size-chip:hover {
   padding: 6px 12px !important;
   font-size: 11px !important;
   background: var(--primary) !important;
-  color: var(--bg) !important;
+  color: #000000 !important;
   border-radius: var(--radius-sm) !important;
   border: none !important;
   cursor: pointer;
@@ -2062,7 +2089,7 @@ body.dark .size-chip:hover {
   padding: 6px 12px !important;
   font-size: 11px !important;
   background: var(--accent) !important;
-  color: #ffffff !important;
+  color: #000000 !important;
   border: none !important;
   border-radius: var(--radius-sm) !important;
   cursor: pointer;
