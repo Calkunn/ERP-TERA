@@ -108,7 +108,10 @@
             <section class="panel">
               <div class="panel-head">
                 <h2>Track Penjualan Bulanan</h2>
-                <span class="hint">Online vs Offline</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button type="button" class="mini ghost toggle-chart-detail" data-chart="sales" style="padding: 2px 6px; font-size: 10px; width: auto; min-height: auto;">Detail</button>
+                  <span class="hint">Online vs Offline</span>
+                </div>
               </div>
               <canvas id="salesChart" height="250"></canvas>
             </section>
@@ -505,6 +508,7 @@
             <section class="panel">
               <div class="panel-head">
                 <h2>Perbandingan Pendapatan</h2>
+                <button type="button" class="mini ghost toggle-chart-detail" data-chart="revenueCompare" style="padding: 2px 6px; font-size: 10px; width: auto; min-height: auto;">Detail</button>
               </div>
               <canvas id="revenueCompareChart" height="280"></canvas>
             </section>
@@ -538,8 +542,11 @@
 
           <section class="panel">
             <div class="panel-head">
-              <h2>Arus Kas 12 Bulan</h2>
-              <span class="hint">Pemasukan vs pengeluaran per bulan</span>
+              <h2>Arus Kas</h2>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="mini ghost toggle-chart-detail" data-chart="profit" style="padding: 2px 6px; font-size: 10px; width: auto; min-height: auto;">Detail</button>
+                <span class="hint">Pemasukan vs pengeluaran per bulan</span>
+              </div>
             </div>
             <canvas id="profitChart" height="280"></canvas>
           </section>

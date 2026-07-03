@@ -22,6 +22,12 @@ let monthlyRevenueRows = [];
 let currentProductionBatches = [];
 let currentPurchaseOrders = [];
 
+const chartDetailStates = {
+  sales: false,
+  revenueCompare: false,
+  profit: false
+};
+
 // Base URL backend untuk Vercel. Menggunakan environment variable VITE_API_URL jika ada (misal di Vercel), default kosong (menggunakan proxy lokal).
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -353,6 +359,8 @@ async function loadDashboard() {
     api("/api/dashboard"),
     api("/api/profit-summary")
   ]);
+  window.dashboardData = data;
+  
   const totalMonthlyRevenue = data.monthlyRevenue.at(-1)?.total || 0;
   const latestProfit = profits[0]?.profit || 0;
   const stockQty = data.inventory.reduce((sum, row) => sum + Number(row.qty || 0), 0);
@@ -365,18 +373,7 @@ async function loadDashboard() {
     ["Nilai Inventory", rupiah.format(stockValue)]
   ].map(([label, value]) => `<article class="metric"><span>${label}</span><strong>${value}</strong></article>`).join("");
 
-  drawLineChart("salesChart", data.monthlyRevenue.slice(-6), {
-    label: (row) => monthName(row.month),
-    series: [
-      { key: "online_revenue", label: "Online", color: chartColors().online },
-      { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-    ]
-  });
-  
-  drawPieChart("stockPieChart", data.inventory);
-  
-  // Draw stock as a line chart now
-  drawArticleStockLineChart("articleStockChart", data.stockByArticle);
+  window.renderDashboardCharts();
 
   const lowStockTableEl = document.querySelector("#lowStockTable");
   if (lowStockTableEl) {
@@ -629,14 +626,9 @@ async function loadMovements() {
 async function loadMonthlyRevenue() {
   const rows = await api("/api/monthly-revenues");
   monthlyRevenueRows = rows;
-  const chartRows = [...rows].reverse().slice(-8);
-  drawLineChart("revenueCompareChart", chartRows, {
-    label: (row) => monthName(row.month),
-    series: [
-      { key: "online_revenue", label: "Online", color: chartColors().online },
-      { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-    ]
-  });
+  window.monthlyRevenueRowsData = rows;
+  
+  window.renderRevenueCompareChart();
   table("#monthlyRevenueTable", [
     { label: "", render: (r) => `<button class="mini edit-revenue" data-month="${r.month}" title="Edit pendapatan">✎</button> <button class="mini danger delete-revenue" data-month="${r.month}" title="Hapus pendapatan">🗑</button>` },
     { label: "Bulan", render: (r) => monthName(r.month) },
@@ -912,15 +904,8 @@ async function loadKeuangan() {
   }
 
   // Draw Cash Flow Chart
-  const chartRows = [...profits].reverse().slice(-8);
-  drawLineChart("profitChart", chartRows, {
-    label: (row) => monthName(row.month),
-    series: [
-      { key: "revenue", label: "Pemasukan", color: chartColors().online },
-      { key: "expense", label: "Pengeluaran", color: chartColors().offline },
-      { key: "profit", label: "Profit", color: chartColors().amber }
-    ]
-  });
+  window.profitChartData = profits;
+  window.renderProfitChart();
 
   // Recent Transactions
   table("#recentTransactionsTable", [
@@ -3166,5 +3151,80 @@ document.querySelector("#aiChatSessionsList")?.addEventListener("click", (e) => 
   } else if (sessionItem) {
     const id = Number(sessionItem.dataset.id);
     selectAiSession(id).catch(e => console.error(e));
+  }
+});
+
+// Chart Detail Redraw Functions
+window.renderDashboardCharts = function() {
+  if (!window.dashboardData) return;
+  const data = window.dashboardData;
+  const salesData = chartDetailStates.sales 
+    ? data.monthlyRevenue 
+    : data.monthlyRevenue.slice(-12);
+    
+  drawLineChart("salesChart", salesData, {
+    label: (row) => monthName(row.month),
+    series: [
+      { key: "online_revenue", label: "Online", color: chartColors().online },
+      { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+    ]
+  });
+  
+  drawPieChart("stockPieChart", data.inventory);
+  drawArticleStockLineChart("articleStockChart", data.stockByArticle);
+};
+
+window.renderRevenueCompareChart = function() {
+  if (!window.monthlyRevenueRowsData) return;
+  const rows = window.monthlyRevenueRowsData;
+  const baseRows = [...rows].reverse();
+  const chartRows = chartDetailStates.revenueCompare 
+    ? baseRows 
+    : baseRows.slice(-12);
+    
+  drawLineChart("revenueCompareChart", chartRows, {
+    label: (row) => monthName(row.month),
+    series: [
+      { key: "online_revenue", label: "Online", color: chartColors().online },
+      { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+    ]
+  });
+};
+
+window.renderProfitChart = function() {
+  if (!window.profitChartData) return;
+  const profits = window.profitChartData;
+  const baseRows = [...profits].reverse();
+  const chartRows = chartDetailStates.profit 
+    ? baseRows 
+    : baseRows.slice(-12);
+    
+  drawLineChart("profitChart", chartRows, {
+    label: (row) => monthName(row.month),
+    series: [
+      { key: "revenue", label: "Pemasukan", color: chartColors().online },
+      { key: "expense", label: "Pengeluaran", color: chartColors().offline },
+      { key: "profit", label: "Profit", color: chartColors().amber }
+    ]
+  });
+};
+
+// Global click delegation for chart toggle buttons
+document.addEventListener("click", (e) => {
+  const toggleBtn = e.target.closest(".toggle-chart-detail");
+  if (toggleBtn) {
+    const chartType = toggleBtn.dataset.chart;
+    chartDetailStates[chartType] = !chartDetailStates[chartType];
+    
+    toggleBtn.textContent = chartDetailStates[chartType] ? "Sederhanakan" : "Detail";
+    toggleBtn.classList.toggle("ghost", !chartDetailStates[chartType]);
+    
+    if (chartType === "sales") {
+      window.renderDashboardCharts();
+    } else if (chartType === "revenueCompare") {
+      window.renderRevenueCompareChart();
+    } else if (chartType === "profit") {
+      window.renderProfitChart();
+    }
   }
 });
