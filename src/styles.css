@@ -178,10 +178,10 @@ summary {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--accent) !important;
-  padding: 4px !important;
-  object-fit: contain !important;
-  box-shadow: var(--shadow-inset) !important;
+  background: #000000 !important;
+  padding: 0 !important;
+  object-fit: cover !important;
+  box-shadow: var(--shadow) !important;
 }
 
 .brand strong {
@@ -2236,6 +2236,11 @@ body.dark .chart-detail-modal {
     max-width: 100vw !important;
   }
   
+  .tab-content, .panel, .view, .grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  
   .sidebar {
     overflow-x: hidden !important;
   }
@@ -2246,6 +2251,7 @@ body.dark .chart-detail-modal {
   }
   
   .sheet-container, .table-wrap {
+    display: block !important;
     overflow-x: auto !important;
     width: 100% !important;
     max-width: 100% !important;
