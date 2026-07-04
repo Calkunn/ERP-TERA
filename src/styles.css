@@ -1910,7 +1910,7 @@ dialog[open]::backdrop {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
-  padding: 16px;
+  padding: 10px;
   margin-top: 8px;
 }
 
@@ -1919,10 +1919,10 @@ dialog[open]::backdrop {
 }
 
 .sheet-table th, .sheet-table td {
-  padding: 10px 14px;
+  padding: 6px 10px;
   text-align: left;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink);
 }
 
@@ -1931,7 +1931,7 @@ dialog[open]::backdrop {
   color: var(--ink);
   font-weight: 800;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.5px;
 }
 
@@ -1941,11 +1941,11 @@ dialog[open]::backdrop {
 }
 
 .sheet-table tr.header-row td {
-  font-size: 13px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--ink);
-  padding-top: 14px;
-  padding-bottom: 14px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   background: var(--soft-primary) !important;
 }
 
@@ -1957,7 +1957,7 @@ dialog[open]::backdrop {
 .sheet-table tr.total-row td {
   border-top: 1px solid var(--line);
   border-bottom: 2px solid var(--line);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink);
   background: var(--soft-tertiary) !important;
 }

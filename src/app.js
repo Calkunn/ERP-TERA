@@ -2440,8 +2440,8 @@ function renderIncomeStatement(data) {
   
   let html = `
     <tr class="header-row">
-      <td style="font-weight:800; min-width: 220px;">Tera</td>
-      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 180px;">Tera</td>`).join("")}
+      <td style="font-weight:800; min-width: 150px;">Tera</td>
+      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 130px;">Tera</td>`).join("")}
     </tr>
     <tr class="header-row">
       <td style="font-weight:700;">Income Statement</td>
@@ -2552,8 +2552,8 @@ function renderCashBudget(data) {
   
   let html = `
     <tr class="header-row">
-      <td style="font-weight:800; min-width: 220px;">Tera</td>
-      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 180px;">Tera</td>`).join("")}
+      <td style="font-weight:800; min-width: 150px;">Tera</td>
+      ${data.map(m => `<td style="font-weight:800; text-align:right; min-width: 130px;">Tera</td>`).join("")}
     </tr>
     <tr class="header-row">
       <td style="font-weight:700;">Cash Budget</td>
