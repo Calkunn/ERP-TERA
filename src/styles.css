@@ -2189,8 +2189,7 @@ body.dark .chart-detail-modal {
 .sheet-table {
   border-collapse: separate !important;
   border-spacing: 0 !important;
-  width: auto !important;
-  min-width: max-content !important;
+  width: 100% !important;
 }
 
 .sheet-table tr.header-row td {
@@ -2283,6 +2282,11 @@ body.dark .chart-detail-modal {
   
   .sheet-table tr.total-row td {
     font-size: 11px !important;
+  }
+  
+  .sheet-table {
+    width: auto !important;
+    min-width: max-content !important;
   }
   
   .sheet-table td.col-label,
