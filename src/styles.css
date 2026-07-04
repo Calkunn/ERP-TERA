@@ -2286,7 +2286,7 @@ body.dark .chart-detail-modal {
   
   .sheet-table {
     width: auto !important;
-    min-width: max-content !important;
+    min-width: 650px !important;
   }
   
   .sheet-table td.col-label,
