@@ -2485,36 +2485,6 @@ function renderIncomeStatement(data) {
       ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.operatingIncome)}</strong></td>`).join("")}
     </tr>
     
-    <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Produksi & Bahan Baku</td></tr>
-    <tr>
-      <td>Bahan Baku</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.bahanBakuCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Purchase Order</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.purchaseOrderCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Produksi</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.produksiCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Jasa Jahit</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.jasaJahitCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Sablon / Bordir</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.sablonBordirCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Packaging</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.packagingCost || 0)}</td>`).join("")}
-    </tr>
-    <tr>
-      <td>Hangtag</td>
-      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.hangtagCost || 0)}</td>`).join("")}
-    </tr>
-    
     <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Other cost</td></tr>
     <tr>
       <td>Operasional</td>
@@ -2523,6 +2493,10 @@ function renderIncomeStatement(data) {
     <tr>
       <td>Marketing</td>
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.marketingCost || 0)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>RND & Sampling</td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.rndCost || 0)}</td>`).join("")}
     </tr>
     <tr>
       <td>Gaji Karyawan</td>

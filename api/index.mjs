@@ -318,6 +318,35 @@ async function initDb() {
 
   await migrateDuplicateProducts();
   await migrateOfflineRevenuesToNet();
+  await migrateRndExpenses();
+}
+
+async function migrateRndExpenses() {
+  console.log("Starting RND expenses migration...");
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS migration_versions (
+      version TEXT PRIMARY KEY,
+      migrated_at TEXT NOT NULL
+    )
+  `);
+  
+  const migrated = await db.prepare("SELECT 1 FROM migration_versions WHERE version = 'rnd_reclassification_v2'").get();
+  if (migrated) {
+    console.log("RND expenses migration already completed. Skipping.");
+    return;
+  }
+
+  await db.exec("BEGIN");
+  try {
+    console.log("Reclassifying May/June Raw Material expenses to RND...");
+    await db.prepare("UPDATE monthly_expenses SET category = 'RND' WHERE amount IN (416250, 416000) AND category = 'Bahan Baku'").run();
+    await db.prepare("INSERT INTO migration_versions (version, migrated_at) VALUES ('rnd_reclassification_v2', CURRENT_TIMESTAMP)").run();
+    await db.exec("COMMIT");
+    console.log("RND expenses migration completed successfully!");
+  } catch (err) {
+    await db.exec("ROLLBACK");
+    console.error("Failed to run RND expenses migration:", err);
+  }
 }
 
 async function migrateOfflineRevenuesToNet() {
@@ -1134,13 +1163,18 @@ async function calculateKeuanganReports() {
       .filter(e => e.category === 'Marketing')
       .reduce((sum, e) => sum + e.amount, 0);
 
+    const rndCost = monthExps
+      .filter(e => e.category === 'RND')
+      .reduce((sum, e) => sum + e.amount, 0);
+
     const lainnyaCost = monthExps
       .filter(e => e.category === 'Lainnya')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const otherCost = operasionalCost + marketingCost + lainnyaCost;
+    const otherCost = operasionalCost + marketingCost + lainnyaCost + rndCost;
 
-    const netIncome = operatingIncome - otherCost - bayarDavid - bahanKain;
+    // Produksi & Bahan Baku are excluded from the Income Statement (they are capitalized in inventory and deducted via COGS).
+    const netIncome = operatingIncome - otherCost - bayarDavid;
 
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
@@ -1178,6 +1212,7 @@ async function calculateKeuanganReports() {
       operasionalCost,
       marketingCost,
       lainnyaCost,
+      rndCost,
       bahanBakuCost,
       purchaseOrderCost,
       produksiCost,
