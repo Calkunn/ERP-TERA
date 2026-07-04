@@ -1072,10 +1072,11 @@ async function calculateKeuanganReports() {
   };
 
   const expenses = rawExpenses.map(e => {
-    if (incomeMonths.includes(e.month)) return e;
-    if (incomeMonths.length === 0) return e;
+    const monthPart = e.month ? e.month.substring(0, 7) : "";
+    if (incomeMonths.includes(monthPart)) return { ...e, month: monthPart };
+    if (incomeMonths.length === 0) return { ...e, month: monthPart };
 
-    const eVal = getMonthVal(e.month);
+    const eVal = getMonthVal(monthPart);
     let closestMonth = incomeMonths[0];
     let minDiff = Math.abs(eVal - getMonthVal(closestMonth));
     for (let i = 1; i < incomeMonths.length; i++) {

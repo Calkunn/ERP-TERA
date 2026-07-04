@@ -928,7 +928,18 @@ async function loadKeuangan() {
   // Expenses Table
   table("#expenseTable", [
     { label: "", render: (r) => `<button class="mini danger delete-expense" data-id="${r.id}" title="Hapus pengeluaran">🗑</button>` },
-    { label: "Bulan", render: (r) => monthName(r.month) },
+    { 
+      label: "Tanggal", 
+      render: (r) => {
+        if (r.month && r.month.length > 7) {
+          const parts = r.month.split("-");
+          if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+          }
+        }
+        return monthName(r.month);
+      }
+    },
     { label: "Kategori", key: "category" },
     { label: "Nominal", render: (r) => rupiah.format(r.amount || 0) },
     { label: "Catatan", key: "note" }
