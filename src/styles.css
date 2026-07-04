@@ -1910,7 +1910,7 @@ dialog[open]::backdrop {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
-  padding: 10px;
+  padding: 16px;
   margin-top: 8px;
 }
 
@@ -1919,10 +1919,10 @@ dialog[open]::backdrop {
 }
 
 .sheet-table th, .sheet-table td {
-  padding: 6px 10px;
+  padding: 10px 14px;
   text-align: left;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
 }
 
@@ -1931,7 +1931,7 @@ dialog[open]::backdrop {
   color: var(--ink);
   font-weight: 800;
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.5px;
 }
 
@@ -1941,12 +1941,23 @@ dialog[open]::backdrop {
 }
 
 .sheet-table tr.header-row td {
-  font-size: 11px;
+  font-size: 13px;
   text-transform: uppercase;
   color: var(--ink);
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 14px;
+  padding-bottom: 14px;
   background: var(--soft-primary) !important;
+}
+
+/* Responsive Column Widths - Desktop Defaults */
+.sheet-table td.col-label,
+.sheet-table th.col-label {
+  min-width: 220px !important;
+}
+
+.sheet-table td.col-data,
+.sheet-table th.col-data {
+  min-width: 180px !important;
 }
 
 .sheet-table tr.total-row {
@@ -1957,7 +1968,7 @@ dialog[open]::backdrop {
 .sheet-table tr.total-row td {
   border-top: 1px solid var(--line);
   border-bottom: 2px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
   background: var(--soft-tertiary) !important;
 }
@@ -2248,6 +2259,40 @@ body.dark .chart-detail-modal {
   .sidebar-nav {
     overflow-y: auto !important;
     overflow-x: hidden !important;
+  }
+  
+  /* Compact table styling for mobile only */
+  .sheet-container {
+    padding: 8px !important;
+  }
+  
+  .sheet-table th, .sheet-table td {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+  
+  .sheet-table th {
+    font-size: 9px !important;
+  }
+  
+  .sheet-table tr.header-row td {
+    font-size: 10px !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  
+  .sheet-table tr.total-row td {
+    font-size: 11px !important;
+  }
+  
+  .sheet-table td.col-label,
+  .sheet-table th.col-label {
+    min-width: 140px !important;
+  }
+  
+  .sheet-table td.col-data,
+  .sheet-table th.col-data {
+    min-width: 110px !important;
   }
   
   .sheet-container, .table-wrap {
