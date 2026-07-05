@@ -3395,7 +3395,7 @@ function redrawModalChart(chartType, range) {
   }
 }
 
-// Global click delegation for Detail buttons and Modal closing
+// Global click delegation for Detail buttons, Modal closing, and Notification Drawer
 document.addEventListener("click", (e) => {
   const toggleBtn = e.target.closest(".toggle-chart-detail");
   if (toggleBtn) {
@@ -3411,6 +3411,46 @@ document.addEventListener("click", (e) => {
       modal.style.display = "none";
       modal.classList.add("hidden");
     }
+  }
+
+  // Close Notification Drawer
+  const closeDrawerBtn = e.target.closest("#closeDrawerBtn");
+  const drawerOverlay = e.target.closest("#drawerOverlay");
+  if (closeDrawerBtn || drawerOverlay) {
+    closeNotificationDrawer();
+  }
+
+  // Open Notification Drawer
+  const notificationBtn = e.target.closest("#notificationBtn") || e.target.closest(".notification-btn");
+  if (notificationBtn) {
+    e.preventDefault();
+    openNotificationDrawer();
+  }
+
+  // Drawer Tabs switching
+  const tabBtn = e.target.closest(".drawer-tab-btn");
+  if (tabBtn) {
+    document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
+    tabBtn.classList.add("active");
+
+    const targetTab = tabBtn.dataset.tab;
+    document.querySelectorAll(".drawer-content .tab-pane").forEach(pane => {
+      pane.classList.remove("active");
+    });
+    const activePane = document.querySelector(`#tabContent-${targetTab}`);
+    if (activePane) {
+      activePane.classList.add("active");
+    }
+  }
+
+  // Warning modal buttons (Catat Sekarang)
+  const warningCatatBtn = e.target.closest("#warningCatatBtn");
+  if (warningCatatBtn) {
+    const finalWarningModal = document.querySelector("#finalWarningModal");
+    if (finalWarningModal) {
+      finalWarningModal.close();
+    }
+    switchView("keuangan");
   }
 });
 
@@ -3680,51 +3720,8 @@ function closeNotificationDrawer() {
   }
 }
 
-// Drawer bindings
+// Settings & UI Bindings on Page Load
 document.addEventListener("DOMContentLoaded", () => {
-  const notificationBtn = document.querySelector("#notificationBtn");
-  const closeDrawerBtn = document.querySelector("#closeDrawerBtn");
-  const drawerOverlay = document.querySelector("#drawerOverlay");
-
-  if (notificationBtn) {
-    notificationBtn.addEventListener("click", openNotificationDrawer);
-  }
-  if (closeDrawerBtn) {
-    closeDrawerBtn.addEventListener("click", closeNotificationDrawer);
-  }
-  if (drawerOverlay) {
-    drawerOverlay.addEventListener("click", closeNotificationDrawer);
-  }
-
-  // Drawer Tabs switching
-  document.querySelectorAll(".drawer-tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      const targetTab = btn.dataset.tab;
-      document.querySelectorAll(".drawer-content .tab-pane").forEach(pane => {
-        pane.classList.remove("active");
-      });
-      const activePane = document.querySelector(`#tabContent-${targetTab}`);
-      if (activePane) {
-        activePane.classList.add("active");
-      }
-    });
-  });
-
-  // Warning modal buttons
-  const warningCatatBtn = document.querySelector("#warningCatatBtn");
-  const finalWarningModal = document.querySelector("#finalWarningModal");
-  if (warningCatatBtn) {
-    warningCatatBtn.addEventListener("click", () => {
-      if (finalWarningModal) {
-        finalWarningModal.close();
-      }
-      switchView("keuangan");
-    });
-  }
-
   // Settings view binders
   const inputStart = document.querySelector("#settingDrawerStart");
   const inputEnd = document.querySelector("#settingDrawerEnd");
