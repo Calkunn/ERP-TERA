@@ -615,7 +615,12 @@ async function loadProducts() {
       <tr class="product-parent-row" data-id="${group.product_id}" style="cursor: pointer; background-color: var(--soft-primary); font-weight: 600;">
         <td style="text-align: center; font-size: 11px; color: var(--accent);" class="expand-indicator">▶</td>
         <td>${baseSku}</td>
-        <td>${group.name}</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${group.variants[0].image ? `<img src="${group.variants[0].image}" style="width: 28px; height: 28px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line);">` : `<span style="font-size: 16px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;">👕</span>`}
+            <span>${group.name}</span>
+          </div>
+        </td>
         <td>${group.category}</td>
         <td style="color: var(--muted); font-size: 11px;">${sizes}</td>
         <td style="color: var(--muted); font-size: 11px;">${colors}</td>
@@ -635,7 +640,12 @@ async function loadProducts() {
             <button class="mini open-product" data-id="${v.variant_id}" type="button" title="Buka artikel">✎ Detail</button>
           </td>
           <td style="padding-left: 15px;">${v.sku}</td>
-          <td style="color: var(--muted);">${v.name}</td>
+          <td style="color: var(--muted);">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              ${v.image ? `<img src="${v.image}" style="width: 22px; height: 22px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);">` : `<span style="font-size: 12px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px;">👕</span>`}
+              <span>${v.name}</span>
+            </div>
+          </td>
           <td style="color: var(--muted);">${v.category}</td>
           <td><strong>${v.size}</strong></td>
           <td>${v.color}</td>
