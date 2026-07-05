@@ -529,6 +529,14 @@ async function loadDashboard() {
       });
     }
   }
+
+  // Update notification drawer/badge and check final warning popup
+  if (typeof updateNotificationCenter === "function") {
+    updateNotificationCenter(data, profits);
+  }
+  if (typeof checkFinalWarningModal === "function") {
+    checkFinalWarningModal(profits);
+  }
 }
 
 async function loadProducts() {
@@ -3405,3 +3413,361 @@ document.addEventListener("click", (e) => {
     }
   }
 });
+
+// Programmatic navigation helper
+function switchView(viewId) {
+  const navBtn = document.querySelector(`.nav[data-view="${viewId}"]`);
+  if (navBtn) {
+    navBtn.click();
+  }
+}
+
+// Notification Center Logic
+window.updateNotificationCenter = function(data, profits) {
+  if (!data) return;
+
+  // 1. Read configurations from localStorage
+  const startDay = parseInt(localStorage.getItem("settingDrawerStart") || "24", 10);
+  const endDay = parseInt(localStorage.getItem("settingDrawerEnd") || "7", 10);
+
+  const today = new Date();
+  const currentDay = today.getDate();
+
+  let badgeCount = 0;
+  const stokItems = [];
+  const keuanganItems = [];
+  const insightItems = [];
+
+  // --- TAB 1: STOK ---
+  const lowStockList = data.lowStock || [];
+  lowStockList.forEach(item => {
+    const qty = Number(item.qty || 0);
+    const lowStock = Number(item.low_stock || 0);
+    const color = item.color || "-";
+    const size = item.size || "-";
+    const name = item.product_name || "Produk";
+    const pool = item.pool_name || "Gudang";
+    const sku = item.sku || "";
+
+    if (qty === 0) {
+      badgeCount++;
+      stokItems.push(`
+        <div class="notification-item crit">
+          <h4>❌ STOK HABIS</h4>
+          <p>Varian <strong>${name} (${color} - ${size})</strong> di <strong>${pool}</strong> telah HABIS! (SKU: ${sku}).</p>
+          <p style="margin-top: 8px; font-size: 11px;"><a href="#" class="nav-to-stock" data-product="${name}" style="color: var(--accent); font-weight: 700; text-decoration: none;">Kelola Produk →</a></p>
+        </div>
+      `);
+    } else {
+      badgeCount++;
+      stokItems.push(`
+        <div class="notification-item warn">
+          <h4>⚠️ STOK MENIPIS</h4>
+          <p>Varian <strong>${name} (${color} - ${size})</strong> di <strong>${pool}</strong> tersisa <strong>${qty} pcs</strong> (Batas aman: ${lowStock} pcs).</p>
+          <p style="margin-top: 8px; font-size: 11px;"><a href="#" class="nav-to-stock" data-product="${name}" style="color: var(--accent); font-weight: 700; text-decoration: none;">Kelola Produk →</a></p>
+        </div>
+      `);
+    }
+  });
+
+  const stokTabPane = document.querySelector("#tabContent-stok");
+  if (stokTabPane) {
+    if (stokItems.length === 0) {
+      stokTabPane.innerHTML = `
+        <div class="empty-state">
+          <span style="font-size: 24px; display: block; margin-bottom: 8px;">👍</span>
+          Semua stok aman! Tidak ada produk kritis saat ini.
+        </div>
+      `;
+    } else {
+      stokTabPane.innerHTML = stokItems.join("");
+    }
+  }
+
+  // --- TAB 2: KEUANGAN ---
+  // A. Bookkeeping Reminder (Drawer - Tanggal 24 s.d. 7)
+  const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  if (currentDay >= startDay || currentDay <= endDay) {
+    badgeCount++;
+    let targetRecapMonthStr = "";
+
+    if (currentDay >= startDay) {
+      const currentMonthIndex = today.getMonth();
+      targetRecapMonthStr = months[currentMonthIndex] + " " + today.getFullYear();
+      keuanganItems.push(`
+        <div class="notification-item warn">
+          <h4>📅 PENGINGAT PEMBUKUAN</h4>
+          <p>Akhir bulan mendekat. Harap siapkan catatan rekapitulasi pendapatan & pengeluaran untuk bulan <strong>${targetRecapMonthStr}</strong>.</p>
+          <p style="margin-top: 8px; font-size: 11px;"><a href="#" class="nav-to-finance" style="color: var(--accent); font-weight: 700; text-decoration: none;">Input Keuangan →</a></p>
+        </div>
+      `);
+    } else {
+      const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const prevMonthIndex = prevMonthDate.getMonth();
+      targetRecapMonthStr = months[prevMonthIndex] + " " + prevMonthDate.getFullYear();
+      keuanganItems.push(`
+        <div class="notification-item crit">
+          <h4>📅 PENGINGAT PEMBUKUAN</h4>
+          <p>Awal bulan baru. Harap masukkan rekapitulasi pendapatan & pengeluaran untuk bulan <strong>${targetRecapMonthStr}</strong> di menu Keuangan.</p>
+          <p style="margin-top: 8px; font-size: 11px;"><a href="#" class="nav-to-finance" style="color: var(--accent); font-weight: 700; text-decoration: none;">Input Keuangan →</a></p>
+        </div>
+      `);
+    }
+  }
+
+  // B. Cash Flow Warning (Laba Bersih Rendah < 1.000.000)
+  if (profits && profits.length > 0) {
+    const latestProfitItem = profits[profits.length - 1];
+    if (latestProfitItem) {
+      const rev = Number(latestProfitItem.revenue || 0);
+      const exp = Number(latestProfitItem.expense || 0);
+      const prof = rev - exp;
+      if (prof < 1000000) {
+        keuanganItems.push(`
+          <div class="notification-item warn">
+            <h4>💸 LABA BERSIH MENURUN</h4>
+            <p>Laba bersih bulan <strong>${monthName(latestProfitItem.month)}</strong> terpantau rendah: <strong>${rupiah.format(prof)}</strong> (Batas aman: Rp 1.000.000).</p>
+          </div>
+        `);
+      }
+    }
+  }
+
+  // C. Sales Achievement Alert
+  if (profits && profits.length >= 2) {
+    const currentProfitItem = profits[profits.length - 1];
+    const prevProfitItem = profits[profits.length - 2];
+    if (currentProfitItem && prevProfitItem) {
+      const curRev = Number(currentProfitItem.revenue || 0);
+      const prevRev = Number(prevProfitItem.revenue || 0);
+      if (curRev > prevRev && prevRev > 0) {
+        const diff = curRev - prevRev;
+        const percent = Math.round((diff / prevRev) * 100);
+        keuanganItems.push(`
+          <div class="notification-item success">
+            <h4>📈 PRESTASI PENJUALAN</h4>
+            <p>Pencapaian bagus! Pendapatan bulan ini meningkat <strong>${percent}%</strong> dibanding bulan lalu (naik <strong>${rupiah.format(diff)}</strong>).</p>
+          </div>
+        `);
+      }
+    }
+  }
+
+  const keuanganTabPane = document.querySelector("#tabContent-keuangan");
+  if (keuanganTabPane) {
+    if (keuanganItems.length === 0) {
+      keuanganTabPane.innerHTML = `
+        <div class="empty-state">
+          <span style="font-size: 24px; display: block; margin-bottom: 8px;">💰</span>
+          Keuangan stabil dan tidak ada laporan kritis.
+        </div>
+      `;
+    } else {
+      keuanganTabPane.innerHTML = keuanganItems.join("");
+    }
+  }
+
+  // --- TAB 3: INSIGHT ---
+  if (data.stockByArticle && data.stockByArticle.length > 0) {
+    const topStock = data.stockByArticle[0];
+    if (topStock) {
+      insightItems.push(`
+        <div class="notification-item info">
+          <h4>🏆 ARTIKEL TERPOPULER</h4>
+          <p>Artikel <strong>'${topStock.product_name}'</strong> merupakan aset terbesar Anda saat ini dengan total fisik <strong>${number.format(topStock.total_qty)} pcs</strong> di gudang.</p>
+        </div>
+      `);
+    }
+  }
+
+  const insightTabPane = document.querySelector("#tabContent-insight");
+  if (insightTabPane) {
+    if (insightItems.length === 0) {
+      insightTabPane.innerHTML = `
+        <div class="empty-state">
+          <span style="font-size: 24px; display: block; margin-bottom: 8px;">💡</span>
+          Belum ada rekomendasi bisnis saat ini.
+        </div>
+      `;
+    } else {
+      insightTabPane.innerHTML = insightItems.join("");
+    }
+  }
+
+  // Update Badge Counter
+  const badgeEl = document.querySelector("#notificationBadge");
+  if (badgeEl) {
+    if (badgeCount > 0) {
+      badgeEl.textContent = badgeCount;
+      badgeEl.classList.remove("hidden");
+    } else {
+      badgeEl.classList.add("hidden");
+    }
+  }
+
+  // Bind navigation triggers
+  document.querySelectorAll(".nav-to-stock").forEach(link => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeNotificationDrawer();
+      switchView("produk");
+      const searchInput = document.querySelector("#produkSearchInput") || document.querySelector("#globalSearch");
+      if (searchInput) {
+        searchInput.value = link.dataset.product;
+        searchInput.dispatchEvent(new Event("input"));
+      }
+    });
+  });
+
+  document.querySelectorAll(".nav-to-finance").forEach(link => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeNotificationDrawer();
+      switchView("keuangan");
+    });
+  });
+};
+
+window.checkFinalWarningModal = function(profits) {
+  if (!profits) return;
+
+  const warningDaysStr = localStorage.getItem("settingWarningDays") || "8,9,10";
+  const warningDays = warningDaysStr.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+
+  const today = new Date();
+  const currentDay = today.getDate();
+
+  // Banner only appears on warningDays (default 8, 9, 10)
+  if (warningDays.includes(currentDay)) {
+    const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const year = prevMonthDate.getFullYear();
+    const month = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const targetMonthStr = `${year}-${month}`; // e.g. "2026-06"
+
+    // Check if there is already an entry for this month in profits
+    const hasRecord = profits.some(r => r.month === targetMonthStr);
+
+    if (!hasRecord) {
+      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+      const prevMonthName = months[prevMonthDate.getMonth()] + " " + year;
+      
+      const modal = document.querySelector("#finalWarningModal");
+      const warningText = document.querySelector("#finalWarningText");
+      if (modal && warningText) {
+        warningText.innerHTML = `Batas waktu pencatatan bulanan telah terlewati (tanggal 7). Anda <strong>belum mencatat</strong> rekapitulasi pendapatan dan pengeluaran untuk bulan <strong>${prevMonthName}</strong>.<br><br>Harap segera mencatat data tersebut agar laporan keuangan tetap akurat.`;
+        modal.showModal();
+      }
+    }
+  }
+};
+
+// Drawer controls
+function openNotificationDrawer() {
+  const drawer = document.querySelector("#notificationDrawer");
+  const overlay = document.querySelector("#drawerOverlay");
+  if (drawer && overlay) {
+    drawer.classList.remove("hidden");
+    overlay.classList.remove("hidden");
+  }
+}
+
+function closeNotificationDrawer() {
+  const drawer = document.querySelector("#notificationDrawer");
+  const overlay = document.querySelector("#drawerOverlay");
+  if (drawer && overlay) {
+    drawer.classList.add("hidden");
+    overlay.classList.add("hidden");
+  }
+}
+
+// Drawer bindings
+document.addEventListener("DOMContentLoaded", () => {
+  const notificationBtn = document.querySelector("#notificationBtn");
+  const closeDrawerBtn = document.querySelector("#closeDrawerBtn");
+  const drawerOverlay = document.querySelector("#drawerOverlay");
+
+  if (notificationBtn) {
+    notificationBtn.addEventListener("click", openNotificationDrawer);
+  }
+  if (closeDrawerBtn) {
+    closeDrawerBtn.addEventListener("click", closeNotificationDrawer);
+  }
+  if (drawerOverlay) {
+    drawerOverlay.addEventListener("click", closeNotificationDrawer);
+  }
+
+  // Drawer Tabs switching
+  document.querySelectorAll(".drawer-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const targetTab = btn.dataset.tab;
+      document.querySelectorAll(".drawer-content .tab-pane").forEach(pane => {
+        pane.classList.remove("active");
+      });
+      const activePane = document.querySelector(`#tabContent-${targetTab}`);
+      if (activePane) {
+        activePane.classList.add("active");
+      }
+    });
+  });
+
+  // Warning modal buttons
+  const warningCatatBtn = document.querySelector("#warningCatatBtn");
+  const finalWarningModal = document.querySelector("#finalWarningModal");
+  if (warningCatatBtn) {
+    warningCatatBtn.addEventListener("click", () => {
+      if (finalWarningModal) {
+        finalWarningModal.close();
+      }
+      switchView("keuangan");
+    });
+  }
+
+  // Settings view binders
+  const inputStart = document.querySelector("#settingDrawerStart");
+  const inputEnd = document.querySelector("#settingDrawerEnd");
+  const inputWarning = document.querySelector("#settingWarningDays");
+  const saveSettingBtn = document.querySelector("#saveSettingBtn");
+
+  // Load from localStorage
+  if (inputStart) inputStart.value = localStorage.getItem("settingDrawerStart") || "24";
+  if (inputEnd) inputEnd.value = localStorage.getItem("settingDrawerEnd") || "7";
+  if (inputWarning) inputWarning.value = localStorage.getItem("settingWarningDays") || "8,9,10";
+
+  if (saveSettingBtn) {
+    saveSettingBtn.addEventListener("click", () => {
+      const startVal = parseInt(inputStart?.value || "24", 10);
+      const endVal = parseInt(inputEnd?.value || "7", 10);
+      const warningVal = inputWarning?.value || "8,9,10";
+
+      if (isNaN(startVal) || startVal < 1 || startVal > 31) {
+        alert("Tanggal mulai pengingat laci harus antara 1 dan 31!");
+        return;
+      }
+      if (isNaN(endVal) || endVal < 1 || endVal > 31) {
+        alert("Tanggal batas akhir pengingat laci harus antara 1 dan 31!");
+        return;
+      }
+
+      localStorage.setItem("settingDrawerStart", startVal.toString());
+      localStorage.setItem("settingDrawerEnd", endVal.toString());
+      localStorage.setItem("settingWarningDays", warningVal);
+
+      // Show save confirmation toast
+      const toastEl = document.querySelector("#toast");
+      if (toastEl) {
+        toastEl.textContent = "Pengaturan notifikasi berhasil disimpan!";
+        toastEl.className = "show";
+        setTimeout(() => {
+          toastEl.className = toastEl.className.replace("show", "");
+        }, 3000);
+      }
+
+      // Reload dashboard data to reflect date configuration changes
+      loadDashboard().catch(e => console.error(e));
+    });
+  }
+});
+
