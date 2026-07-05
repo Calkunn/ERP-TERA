@@ -2563,3 +2563,94 @@ body.dark .notification-item {
   -webkit-backdrop-filter: blur(6px);
 }
 
+/* Responsive Month Range Filter Bar */
+.finance-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: nowrap;
+}
+
+.finance-filter-container > span:first-child {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.finance-filter-container > span:nth-of-type(2) {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.finance-filter-container input[type="month"] {
+  width: 140px !important;
+  max-width: 140px !important;
+  min-width: 130px !important;
+  flex: 0 0 140px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+
+.finance-filter-container button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: bold !important;
+  border-radius: 8px !important;
+  width: auto !important;
+  margin-left: 4px !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 600px) {
+  .finance-filter-container {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+  
+  .finance-filter-container > span:first-child {
+    width: 100% !important;
+    display: block !important;
+    margin-bottom: 4px;
+  }
+
+  .finance-filter-container input[type="month"] {
+    flex: 1 1 calc(50% - 20px) !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .finance-filter-container > span:nth-of-type(2) {
+    flex: 0 0 auto !important;
+  }
+
+  .finance-filter-container button {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 4px;
+  }
+}
+

@@ -556,14 +556,12 @@
             </div>
           </div>
 
-          <div class="finance-filter-container" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 12px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); width: 100%; box-sizing: border-box; flex-wrap: nowrap; overflow-x: auto;">
-            <span style="font-size: 12px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;">
-              <span>📅</span> Filter Periode Bulan & Tahun:
-            </span>
-            <input type="month" id="financeFilterStart" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none; width: 150px; flex-shrink: 0; min-width: 130px;">
-            <span style="font-size: 12px; color: var(--muted); font-weight: 700; flex-shrink: 0; white-space: nowrap;">s/d</span>
-            <input type="month" id="financeFilterEnd" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none; width: 150px; flex-shrink: 0; min-width: 130px;">
-            <button type="button" id="financeFilterResetBtn" class="mini ghost" style="padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; height: auto; min-height: auto; width: auto; margin-left: 4px; flex-shrink: 0; white-space: nowrap;">Reset</button>
+          <div class="finance-filter-container">
+            <span>📅 Filter Periode Bulan & Tahun:</span>
+            <input type="month" id="financeFilterStart">
+            <span>s/d</span>
+            <input type="month" id="financeFilterEnd">
+            <button type="button" id="financeFilterResetBtn" class="mini ghost">Reset</button>
           </div>
 
           <section class="panel">
