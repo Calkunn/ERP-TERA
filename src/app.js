@@ -139,6 +139,10 @@ function rupiahCompact(val) {
 function drawLineChart(canvasId, rows, config) {
   const canvas = document.querySelector(`#${canvasId}`);
   if (!canvas) return;
+  
+  // Store current rows and config on the canvas element to avoid stale closures
+  canvas.chartData = { rows, config };
+  
   const { ctx, width, height } = clearCanvas(canvas);
   const colors = chartColors();
   const pad = width > 400 ? 42 : 32;
@@ -320,6 +324,8 @@ function drawLineChart(canvasId, rows, config) {
     let isDragging = false;
     let startX = 0;
     let startPanX = 0;
+    let onMouseMove = null;
+    let onMouseUp = null;
     
     canvas.addEventListener("mousedown", (e) => {
       isDragging = true;
@@ -328,29 +334,35 @@ function drawLineChart(canvasId, rows, config) {
       startX = (e.clientX - rect.left) / (rect.width / width);
       startPanX = canvas.zoomState.panX;
       canvas.style.cursor = "grabbing";
-    });
-    
-    window.addEventListener("mousemove", (e) => {
-      if (!isDragging) return;
-      const rect = canvas.getBoundingClientRect();
-      const currentX = (e.clientX - rect.left) / (rect.width / width);
-      const dx = currentX - startX;
       
-      const currentScale = canvas.zoomState.scale;
-      canvas.zoomState.panX = startPanX + dx;
+      onMouseMove = (moveEvent) => {
+        if (!isDragging) return;
+        const currentX = (moveEvent.clientX - rect.left) / (rect.width / width);
+        const dx = currentX - startX;
+        
+        const currentScale = canvas.zoomState.scale;
+        canvas.zoomState.panX = startPanX + dx;
+        
+        // Bound horizontal pan
+        const minPan = (width - pad * 2) * (1 - currentScale);
+        canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
+        
+        // Read current rows/config from canvas element to avoid stale closures
+        const currentData = canvas.chartData;
+        drawLineChart(canvasId, currentData.rows, currentData.config);
+      };
       
-      // Bound horizontal pan
-      const minPan = (width - pad * 2) * (1 - currentScale);
-      canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
+      onMouseUp = () => {
+        if (isDragging) {
+          isDragging = false;
+          canvas.style.cursor = "grab";
+          window.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUp);
+        }
+      };
       
-      drawLineChart(canvasId, rows, config);
-    });
-    
-    window.addEventListener("mouseup", () => {
-      if (isDragging) {
-        isDragging = false;
-        canvas.style.cursor = "grab";
-      }
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
     });
     
     canvas.addEventListener("mouseenter", () => {
@@ -378,7 +390,8 @@ function drawLineChart(canvasId, rows, config) {
         canvas.zoomState.scale = newScale;
         canvas.zoomState.panX = newPanX;
         
-        drawLineChart(canvasId, rows, config);
+        const currentData = canvas.chartData;
+        drawLineChart(canvasId, currentData.rows, currentData.config);
       }
     }, { passive: false });
     
@@ -411,7 +424,9 @@ function drawLineChart(canvasId, rows, config) {
         canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
         
         lastTouchX = currentX;
-        drawLineChart(canvasId, rows, config);
+        
+        const currentData = canvas.chartData;
+        drawLineChart(canvasId, currentData.rows, currentData.config);
       } else if (e.touches.length === 2) {
         e.preventDefault();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -434,7 +449,9 @@ function drawLineChart(canvasId, rows, config) {
           canvas.zoomState.panX = newPanX;
           
           lastTouchDist = dist;
-          drawLineChart(canvasId, rows, config);
+          
+          const currentData = canvas.chartData;
+          drawLineChart(canvasId, currentData.rows, currentData.config);
         }
       }
     }, { passive: false });
