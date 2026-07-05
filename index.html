@@ -541,16 +541,7 @@
 
         <!-- KEUANGAN VIEW -->
         <section id="keuangan" class="view">
-          <div class="finance-filter-container" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 10px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); width: fit-content; flex-wrap: wrap;">
-            <span style="font-size: 12px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px;">
-              <span>📅</span> Filter Rentang Bulan:
-            </span>
-            <input type="month" id="financeFilterStart" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none;">
-            <span style="font-size: 12px; color: var(--muted); font-weight: 700;">s/d</span>
-            <input type="month" id="financeFilterEnd" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none;">
-            <button type="button" id="financeFilterResetBtn" class="mini ghost" style="padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; height: auto; min-height: auto; width: auto; margin-left: 4px;">Reset</button>
-          </div>
-          <div class="metrics-summary select-none">
+          <div class="metrics-summary select-none" style="margin-bottom: 16px;">
             <div class="metric-summary-card green">
               <span>TOTAL PEMASUKAN</span>
               <strong id="financeTotalIncome">Rp 0</strong>
@@ -563,6 +554,16 @@
               <span>LABA BERSIH</span>
               <strong id="financeNetProfit">Rp 0</strong>
             </div>
+          </div>
+
+          <div class="finance-filter-container" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 12px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); width: 100%; box-sizing: border-box; flex-wrap: wrap;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+              <span>📅</span> Filter Periode Bulan & Tahun:
+            </span>
+            <input type="month" id="financeFilterStart" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none;">
+            <span style="font-size: 12px; color: var(--muted); font-weight: 700;">s/d</span>
+            <input type="month" id="financeFilterEnd" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); outline: none;">
+            <button type="button" id="financeFilterResetBtn" class="mini ghost" style="padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; height: auto; min-height: auto; width: auto; margin-left: 4px;">Reset</button>
           </div>
 
           <section class="panel">
