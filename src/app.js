@@ -140,9 +140,16 @@ function drawLineChart(canvasId, rows, config) {
   const canvas = document.querySelector(`#${canvasId}`);
   if (!canvas) return;
   
-  // Store current rows and config on the canvas element to avoid stale closures
-  canvas.chartData = { rows, config };
-  
+  // Calculate dynamic width based on number of data points to trigger native scrolling
+  const parentWidth = canvas.parentElement ? canvas.parentElement.clientWidth : 420;
+  let cssWidth = parentWidth;
+  if (rows.length > 6) {
+    cssWidth = Math.max(parentWidth, rows.length * 80);
+    canvas.style.width = `${cssWidth}px`;
+  } else {
+    canvas.style.width = "100%";
+  }
+
   const { ctx, width, height } = clearCanvas(canvas);
   const colors = chartColors();
   const pad = width > 400 ? 42 : 32;
@@ -153,9 +160,6 @@ function drawLineChart(canvasId, rows, config) {
     ctx.fillText("Belum ada data", pad, height / 2);
     return;
   }
-
-  // Initialize zoom and pan state on the canvas element if not exists
-  canvas.zoomState = canvas.zoomState || { scale: 1, panX: 0 };
 
   // Calculate actual min and max values to handle negative numbers correctly
   const allValues = rows.flatMap((row) => config.series.map((s) => Number(row[s.key] || 0)));
@@ -177,8 +181,6 @@ function drawLineChart(canvasId, rows, config) {
   }
   
   const range = max - min;
-  const scale = canvas.zoomState.scale;
-  const panX = canvas.zoomState.panX;
   const groupWidth = (width - pad * 2) / Math.max(1, rows.length);
 
   // Draw Horizontal Dashed Gridlines
@@ -219,7 +221,7 @@ function drawLineChart(canvasId, rows, config) {
 
   config.series.forEach((series) => {
     const points = rows.map((row, index) => {
-      const x = pad + (index * groupWidth * scale) + (groupWidth / 2 * scale) + panX;
+      const x = pad + index * groupWidth + groupWidth / 2;
       const value = Number(row[series.key] || 0);
       const y = height - pad - ((value - min) / range) * (height - pad * 2);
       return { x, y };
@@ -292,7 +294,7 @@ function drawLineChart(canvasId, rows, config) {
   ctx.rect(pad, height - pad, width - pad * 2, pad);
   ctx.clip();
   rows.forEach((row, index) => {
-    const x = pad + (index * groupWidth * scale) + (groupWidth / 2 * scale) + panX;
+    const x = pad + index * groupWidth + groupWidth / 2;
     ctx.fillStyle = colors.muted;
     ctx.textAlign = "center";
     ctx.font = width > 400 ? "10px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
@@ -316,150 +318,6 @@ function drawLineChart(canvasId, rows, config) {
     ctx.textAlign = "left";
     ctx.fillText(series.label, lx + 14, ly + 3);
   });
-
-  // Bind Pan & Zoom Event Listeners (Once per canvas element)
-  if (!canvas.interactionsInitialized) {
-    canvas.interactionsInitialized = true;
-    
-    let isDragging = false;
-    let startX = 0;
-    let startPanX = 0;
-    let onMouseMove = null;
-    let onMouseUp = null;
-    
-    canvas.addEventListener("mousedown", (e) => {
-      isDragging = true;
-      const rect = canvas.getBoundingClientRect();
-      // Get internal canvas coordinate
-      startX = (e.clientX - rect.left) / (rect.width / width);
-      startPanX = canvas.zoomState.panX;
-      canvas.style.cursor = "grabbing";
-      
-      onMouseMove = (moveEvent) => {
-        if (!isDragging) return;
-        const currentX = (moveEvent.clientX - rect.left) / (rect.width / width);
-        const dx = currentX - startX;
-        
-        const currentScale = canvas.zoomState.scale;
-        canvas.zoomState.panX = startPanX + dx;
-        
-        // Bound horizontal pan
-        const minPan = (width - pad * 2) * (1 - currentScale);
-        canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
-        
-        // Read current rows/config from canvas element to avoid stale closures
-        const currentData = canvas.chartData;
-        drawLineChart(canvasId, currentData.rows, currentData.config);
-      };
-      
-      onMouseUp = () => {
-        if (isDragging) {
-          isDragging = false;
-          canvas.style.cursor = "grab";
-          window.removeEventListener("mousemove", onMouseMove);
-          window.removeEventListener("mouseup", onMouseUp);
-        }
-      };
-      
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
-    });
-    
-    canvas.addEventListener("mouseenter", () => {
-      canvas.style.cursor = "grab";
-    });
-    
-    // Zoom via Scroll Wheel
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left) / (rect.width / width);
-      
-      const zoomIntensity = 0.08;
-      const oldScale = canvas.zoomState.scale;
-      const delta = e.deltaY < 0 ? 1 : -1;
-      const newScale = Math.max(1, Math.min(10, oldScale + delta * zoomIntensity * oldScale));
-      
-      if (newScale !== oldScale) {
-        const oldPanX = canvas.zoomState.panX;
-        let newPanX = mouseX - (mouseX - oldPanX) * (newScale / oldScale);
-        
-        const minPan = (width - pad * 2) * (1 - newScale);
-        newPanX = Math.max(minPan, Math.min(0, newPanX));
-        
-        canvas.zoomState.scale = newScale;
-        canvas.zoomState.panX = newPanX;
-        
-        const currentData = canvas.chartData;
-        drawLineChart(canvasId, currentData.rows, currentData.config);
-      }
-    }, { passive: false });
-    
-    // Touch Events for Mobile (Drag and Pinch-to-Zoom)
-    let lastTouchX = 0;
-    let lastTouchDist = 0;
-    
-    canvas.addEventListener("touchstart", (e) => {
-      if (e.touches.length === 1) {
-        isDragging = true;
-        const rect = canvas.getBoundingClientRect();
-        lastTouchX = (e.touches[0].clientX - rect.left) / (rect.width / width);
-        startPanX = canvas.zoomState.panX;
-      } else if (e.touches.length === 2) {
-        isDragging = false;
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        lastTouchDist = Math.sqrt(dx * dx + dy * dy);
-      }
-    }, { passive: true });
-    
-    canvas.addEventListener("touchmove", (e) => {
-      const rect = canvas.getBoundingClientRect();
-      if (e.touches.length === 1 && isDragging) {
-        const currentX = (e.touches[0].clientX - rect.left) / (rect.width / width);
-        const dx = currentX - lastTouchX;
-        canvas.zoomState.panX = canvas.zoomState.panX + dx;
-        
-        const minPan = (width - pad * 2) * (1 - canvas.zoomState.scale);
-        canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
-        
-        lastTouchX = currentX;
-        
-        const currentData = canvas.chartData;
-        drawLineChart(canvasId, currentData.rows, currentData.config);
-      } else if (e.touches.length === 2) {
-        e.preventDefault();
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / (rect.width / width);
-        const oldScale = canvas.zoomState.scale;
-        const ratio = dist / lastTouchDist;
-        const newScale = Math.max(1, Math.min(10, oldScale * ratio));
-        
-        if (newScale !== oldScale) {
-          const oldPanX = canvas.zoomState.panX;
-          let newPanX = midX - (midX - oldPanX) * (newScale / oldScale);
-          
-          const minPan = (width - pad * 2) * (1 - newScale);
-          newPanX = Math.max(minPan, Math.min(0, newPanX));
-          
-          canvas.zoomState.scale = newScale;
-          canvas.zoomState.panX = newPanX;
-          
-          lastTouchDist = dist;
-          
-          const currentData = canvas.chartData;
-          drawLineChart(canvasId, currentData.rows, currentData.config);
-        }
-      }
-    }, { passive: false });
-    
-    canvas.addEventListener("touchend", () => {
-      isDragging = false;
-    }, { passive: true });
-  }
 }
 
 function drawPieChart(canvasId, rows) {
@@ -3398,6 +3256,7 @@ window.renderProfitChart = function() {
 window.showFullScreenChart = function(chartType) {
   const modal = document.querySelector("#chartDetailModal");
   const modalTitle = document.querySelector("#modalChartTitle");
+  const filterBar = document.querySelector("#modalFilterBar");
   
   if (!modal) return;
   
@@ -3408,50 +3267,122 @@ window.showFullScreenChart = function(chartType) {
   const canvas = document.querySelector("#modalChartCanvas");
   if (canvas) {
     canvas.setAttribute("height", "450");
-    canvas.zoomState = { scale: 1, panX: 0 };
+  }
+
+  // Set title and filter buttons based on chart type
+  let activeRange = "all";
+  if (chartType === "sales") {
+    modalTitle.textContent = "Detail Grafik Penjualan Bulanan";
+    activeRange = "6";
+  } else if (chartType === "revenueCompare") {
+    modalTitle.textContent = "Detail Perbandingan Pendapatan Bulanan";
+    activeRange = "6";
+  } else if (chartType === "profit") {
+    modalTitle.textContent = "Detail Arus Kas Bulanan / Cash Flow";
+    activeRange = "6";
+  } else if (chartType === "articleStock") {
+    modalTitle.textContent = "Detail Sisa Stok per Artikel";
+    activeRange = "10";
+  }
+
+  if (filterBar) {
+    if (chartType === "articleStock") {
+      filterBar.innerHTML = `
+        <button class="chart-filter-btn active" data-range="10">Top 10</button>
+        <button class="chart-filter-btn" data-range="25">Top 25</button>
+        <button class="chart-filter-btn" data-range="all">Semua</button>
+      `;
+    } else {
+      filterBar.innerHTML = `
+        <button class="chart-filter-btn active" data-range="6">6 Bulan</button>
+        <button class="chart-filter-btn" data-range="12">12 Bulan</button>
+        <button class="chart-filter-btn" data-range="all">Semua</button>
+      `;
+    }
+
+    // Set up click listener for the filter buttons
+    const buttons = filterBar.querySelectorAll(".chart-filter-btn");
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        buttons.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const range = btn.dataset.range;
+        redrawModalChart(chartType, range);
+      });
+    });
   }
   
   // Wait for modal display layout styling to settle before calculating canvas sizes
   setTimeout(() => {
-    if (chartType === "sales") {
-      modalTitle.textContent = "Detail Grafik Penjualan Bulanan (Semua Data)";
-      if (window.dashboardData) {
-        drawLineChart("modalChartCanvas", window.dashboardData.monthlyRevenue, {
-          label: (row) => monthName(row.month),
-          series: [
-            { key: "online_revenue", label: "Online", color: chartColors().online },
-            { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-          ]
-        });
-      }
-    } else if (chartType === "revenueCompare") {
-      modalTitle.textContent = "Detail Perbandingan Pendapatan Bulanan (Semua Data)";
-      if (window.monthlyRevenueRowsData) {
-        const baseRows = [...window.monthlyRevenueRowsData].reverse();
-        drawLineChart("modalChartCanvas", baseRows, {
-          label: (row) => monthName(row.month),
-          series: [
-            { key: "online_revenue", label: "Online", color: chartColors().online },
-            { key: "offline_revenue", label: "Offline", color: chartColors().offline }
-          ]
-        });
-      }
-    } else if (chartType === "profit") {
-      modalTitle.textContent = "Detail Arus Kas Bulanan / Cash Flow (Semua Data)";
-      if (window.profitChartData) {
-        const baseRows = [...window.profitChartData].reverse();
-        drawLineChart("modalChartCanvas", baseRows, {
-          label: (row) => monthName(row.month),
-          series: [
-            { key: "revenue", label: "Pemasukan", color: chartColors().online },
-            { key: "expense", label: "Pengeluaran", color: chartColors().offline },
-            { key: "profit", label: "Profit", color: chartColors().amber }
-          ]
-        });
-      }
-    }
+    redrawModalChart(chartType, activeRange);
   }, 50);
 };
+
+// Redraw function for modal canvas based on active filters
+function redrawModalChart(chartType, range) {
+  const canvas = document.querySelector("#modalChartCanvas");
+  if (!canvas) return;
+
+  // Reset any parent scroll so the chart starts scrolled to the left
+  const wrapper = canvas.parentElement;
+  if (wrapper) {
+    wrapper.scrollLeft = 0;
+  }
+
+  if (chartType === "sales") {
+    if (!window.dashboardData) return;
+    let baseRows = window.dashboardData.monthlyRevenue || [];
+    if (range !== "all") {
+      baseRows = baseRows.slice(-Number(range));
+    }
+    drawLineChart("modalChartCanvas", baseRows, {
+      label: (row) => monthName(row.month),
+      series: [
+        { key: "online_revenue", label: "Online", color: chartColors().online },
+        { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+      ]
+    });
+  } else if (chartType === "revenueCompare") {
+    if (!window.monthlyRevenueRowsData) return;
+    let baseRows = [...window.monthlyRevenueRowsData].reverse();
+    if (range !== "all") {
+      baseRows = baseRows.slice(-Number(range));
+    }
+    drawLineChart("modalChartCanvas", baseRows, {
+      label: (row) => monthName(row.month),
+      series: [
+        { key: "online_revenue", label: "Online", color: chartColors().online },
+        { key: "offline_revenue", label: "Offline", color: chartColors().offline }
+      ]
+    });
+  } else if (chartType === "profit") {
+    if (!window.profitChartData) return;
+    let baseRows = [...window.profitChartData].reverse();
+    if (range !== "all") {
+      baseRows = baseRows.slice(-Number(range));
+    }
+    drawLineChart("modalChartCanvas", baseRows, {
+      label: (row) => monthName(row.month),
+      series: [
+        { key: "revenue", label: "Pemasukan", color: chartColors().online },
+        { key: "expense", label: "Pengeluaran", color: chartColors().offline },
+        { key: "profit", label: "Profit", color: chartColors().amber }
+      ]
+    });
+  } else if (chartType === "articleStock") {
+    if (!window.dashboardData || !window.dashboardData.stockByArticle) return;
+    let baseRows = window.dashboardData.stockByArticle || [];
+    if (range !== "all") {
+      baseRows = baseRows.slice(0, Number(range));
+    }
+    drawLineChart("modalChartCanvas", baseRows, {
+      label: (row) => row.name.length > 15 ? `${row.name.slice(0, 12)}...` : row.name,
+      series: [
+        { key: "total_qty", label: "Stok Total", color: chartColors().online }
+      ]
+    });
+  }
+}
 
 // Global click delegation for Detail buttons and Modal closing
 document.addEventListener("click", (e) => {

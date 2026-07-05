@@ -2313,3 +2313,59 @@ body.dark .chart-detail-modal {
   }
 }
 
+/* Native Chart Horizonal Scrolling & Time/Range Filters */
+.chart-scroll-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom horizontal scrollbar style specifically for charts */
+.chart-scroll-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+.chart-scroll-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chart-scroll-wrap::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 99px;
+}
+.chart-scroll-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+.chart-filter-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chart-filter-btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: all 0.2s ease;
+}
+
+.chart-filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chart-filter-btn.active {
+  background: var(--soft-primary);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--shadow-inset);
+}
+
