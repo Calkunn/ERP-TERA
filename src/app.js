@@ -3269,7 +3269,7 @@ window.showFullScreenChart = function(chartType) {
     canvas.setAttribute("height", "450");
   }
 
-  // Set title and filter buttons based on chart type
+  // Set title and filter dropdown options based on chart type
   let activeRange = "all";
   if (chartType === "sales") {
     modalTitle.textContent = "Detail Grafik Penjualan Bulanan";
@@ -3288,28 +3288,31 @@ window.showFullScreenChart = function(chartType) {
   if (filterBar) {
     if (chartType === "articleStock") {
       filterBar.innerHTML = `
-        <button class="chart-filter-btn active" data-range="10">Top 10</button>
-        <button class="chart-filter-btn" data-range="25">Top 25</button>
-        <button class="chart-filter-btn" data-range="all">Semua</button>
+        <select class="chart-filter-select" id="chartRangeSelect">
+          <option value="5">Top 5</option>
+          <option value="10" selected>Top 10</option>
+          <option value="25">Top 25</option>
+          <option value="all">Semua</option>
+        </select>
       `;
     } else {
       filterBar.innerHTML = `
-        <button class="chart-filter-btn active" data-range="6">6 Bulan</button>
-        <button class="chart-filter-btn" data-range="12">12 Bulan</button>
-        <button class="chart-filter-btn" data-range="all">Semua</button>
+        <select class="chart-filter-select" id="chartRangeSelect">
+          <option value="3">3 Bulan</option>
+          <option value="6" selected>6 Bulan</option>
+          <option value="12">12 Bulan</option>
+          <option value="all">Semua</option>
+        </select>
       `;
     }
 
-    // Set up click listener for the filter buttons
-    const buttons = filterBar.querySelectorAll(".chart-filter-btn");
-    buttons.forEach(btn => {
-      btn.addEventListener("click", () => {
-        buttons.forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        const range = btn.dataset.range;
+    const select = filterBar.querySelector("#chartRangeSelect");
+    if (select) {
+      select.addEventListener("change", () => {
+        const range = select.value;
         redrawModalChart(chartType, range);
       });
-    });
+    }
   }
   
   // Wait for modal display layout styling to settle before calculating canvas sizes
