@@ -2370,3 +2370,8 @@ body.dark .chart-detail-modal {
   color: var(--accent);
 }
 
+.chart-filter-select option {
+  background-color: var(--panel);
+  color: var(--ink);
+}
+
