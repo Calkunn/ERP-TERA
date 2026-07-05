@@ -2525,7 +2525,7 @@ body.dark .notification-item {
   color: var(--muted);
 }
 
-.badge {
+.notification-badge {
   position: absolute;
   top: -5px;
   right: -5px;
