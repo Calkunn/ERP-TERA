@@ -541,6 +541,15 @@
 
         <!-- KEUANGAN VIEW -->
         <section id="keuangan" class="view">
+          <div class="panel-head" style="margin-bottom: 14px; flex-wrap: wrap; gap: 12px; justify-content: flex-end;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 11px; font-weight: 700; color: var(--muted);">Filter Bulan:</span>
+              <input type="month" id="financeFilterStart" style="padding: 6px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);">
+              <span style="font-size: 11px; font-weight: 700; color: var(--muted);">s/d</span>
+              <input type="month" id="financeFilterEnd" style="padding: 6px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);">
+              <button type="button" id="financeFilterResetBtn" class="mini ghost" style="padding: 6px 10px; font-size: 12px; height: auto; min-height: auto; width: auto; font-weight: bold; border-radius: 8px;">Reset</button>
+            </div>
+          </div>
           <div class="metrics-summary select-none">
             <div class="metric-summary-card green">
               <span>TOTAL PEMASUKAN</span>

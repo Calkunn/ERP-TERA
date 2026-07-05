@@ -962,8 +962,64 @@ async function loadKeuangan() {
     api("/api/monthly-expenses")
   ]);
 
-  const totalIncome = profits.reduce((sum, r) => sum + Number(r.revenue || 0), 0);
-  const totalExpense = profits.reduce((sum, r) => sum + Number(r.expense || 0), 0);
+  // Store globally to enable instant client-side filtering
+  window.allKeuanganTransactions = transactions;
+  window.allKeuanganProfits = profits;
+  window.allKeuanganExpenses = expenses;
+
+  // Initial render
+  window.renderFilteredKeuangan();
+}
+
+window.renderFilteredKeuangan = function() {
+  const transactions = window.allKeuanganTransactions || [];
+  const profits = window.allKeuanganProfits || [];
+  const expenses = window.allKeuanganExpenses || [];
+
+  const startVal = document.querySelector("#financeFilterStart")?.value; // YYYY-MM
+  const endVal = document.querySelector("#financeFilterEnd")?.value;     // YYYY-MM
+
+  // 1. Filter profits (month-year charts and table)
+  let filteredProfits = [...profits];
+  if (startVal) {
+    filteredProfits = filteredProfits.filter(r => r.month >= startVal);
+  }
+  if (endVal) {
+    filteredProfits = filteredProfits.filter(r => r.month <= endVal);
+  }
+
+  // Recalculate cumulative profit chronologically for the filtered range
+  let runningProfit = 0;
+  const chronoFiltered = [...filteredProfits].reverse();
+  const finalFilteredProfits = chronoFiltered.map(item => {
+    const rev = Number(item.revenue || 0);
+    const exp = Number(item.expense || 0);
+    const profit = rev - exp;
+    runningProfit += profit;
+    return {
+      ...item,
+      profit: profit,
+      cumulative_profit: runningProfit
+    };
+  }).reverse();
+
+  // 2. Filter expenses list by date range if available
+  let filteredExpenses = [...expenses];
+  if (startVal) {
+    filteredExpenses = filteredExpenses.filter(r => {
+      const itemMonth = r.month.slice(0, 7); // e.g. "2026-06-15" -> "2026-06"
+      return itemMonth >= startVal;
+    });
+  }
+  if (endVal) {
+    filteredExpenses = filteredExpenses.filter(r => {
+      const itemMonth = r.month.slice(0, 7);
+      return itemMonth <= endVal;
+    });
+  }
+
+  const totalIncome = finalFilteredProfits.reduce((sum, r) => sum + Number(r.revenue || 0), 0);
+  const totalExpense = finalFilteredProfits.reduce((sum, r) => sum + Number(r.expense || 0), 0);
   const netProfit = totalIncome - totalExpense;
 
   document.querySelector("#financeTotalIncome").textContent = rupiah.format(totalIncome);
@@ -975,8 +1031,8 @@ async function loadKeuangan() {
     profitCard.className = "metric-summary-card " + (netProfit >= 0 ? "green" : "red");
   }
 
-  // Draw Cash Flow Chart
-  window.profitChartData = profits;
+  // Draw Cash Flow Chart using filtered profits
+  window.profitChartData = finalFilteredProfits;
   window.renderProfitChart();
 
   // Recent Transactions
@@ -995,7 +1051,7 @@ async function loadKeuangan() {
     { label: "Pengeluaran", render: (r) => rupiah.format(r.expense || 0) },
     { label: "Profit", render: (r) => rupiah.format(r.profit || 0) },
     { label: "Akumulasi", render: (r) => `<strong>${rupiah.format(r.cumulative_profit || 0)}</strong>` }
-  ], profits);
+  ], finalFilteredProfits);
 
   // Expenses Table
   table("#expenseTable", [
@@ -1015,7 +1071,7 @@ async function loadKeuangan() {
     { label: "Kategori", key: "category" },
     { label: "Nominal", render: (r) => rupiah.format(r.amount || 0) },
     { label: "Catatan", key: "note" }
-  ], expenses);
+  ], filteredExpenses);
 }
 
 
@@ -3764,6 +3820,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Reload dashboard data to reflect date configuration changes
       loadDashboard().catch(e => console.error(e));
+    });
+  }
+
+  // Finance Date Range Filter Change Listeners
+  const financeFilterStart = document.querySelector("#financeFilterStart");
+  const financeFilterEnd = document.querySelector("#financeFilterEnd");
+  const financeFilterResetBtn = document.querySelector("#financeFilterResetBtn");
+
+  if (financeFilterStart) {
+    financeFilterStart.addEventListener("change", () => {
+      if (typeof window.renderFilteredKeuangan === "function") {
+        window.renderFilteredKeuangan();
+      }
+    });
+  }
+  if (financeFilterEnd) {
+    financeFilterEnd.addEventListener("change", () => {
+      if (typeof window.renderFilteredKeuangan === "function") {
+        window.renderFilteredKeuangan();
+      }
+    });
+  }
+  if (financeFilterResetBtn) {
+    financeFilterResetBtn.addEventListener("click", () => {
+      if (financeFilterStart) financeFilterStart.value = "";
+      if (financeFilterEnd) financeFilterEnd.value = "";
+      if (typeof window.renderFilteredKeuangan === "function") {
+        window.renderFilteredKeuangan();
+      }
     });
   }
 });
