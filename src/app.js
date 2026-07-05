@@ -1260,7 +1260,8 @@ function openProductDetailDrawer(variantId) {
   document.querySelector("#drawerProductCategory").textContent = row.category;
   document.querySelector("#drawerCostPrice").textContent = rupiah.format(row.cost_price);
   document.querySelector("#drawerSellPrice").textContent = rupiah.format(row.sell_price);
-  document.querySelector("#drawerBarcodeText").textContent = `${row.sku}-BC`;
+  const barcodeEl = document.querySelector("#drawerBarcodeText");
+  if (barcodeEl) barcodeEl.textContent = `${row.sku}-BC`;
 
   // Populate form
   const form = document.querySelector("#drawerEditProductForm");
@@ -1380,53 +1381,57 @@ document.querySelector("#drawerDeleteProductBtn").addEventListener("click", asyn
 });
 
 // Barcode Print Window
-document.querySelector("#printBarcodeBtn").addEventListener("click", () => {
-  const sku = document.querySelector("#drawerProductSku").textContent;
-  const name = document.querySelector("#drawerProductName").textContent;
-  
-  const printWindow = window.open("", "_blank");
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Print Barcode - ${sku}</title>
-        <style>
-          body {
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-          }
-          .barcode {
-            font-size: 44px;
-            letter-spacing: 3px;
-            margin-bottom: 8px;
-            font-weight: bold;
-          }
-          .label {
-            font-size: 16px;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="barcode">|||||||||||||||||||||||||</div>
-        <div class="label">${sku}</div>
-        <div style="font-size: 12px; margin-top: 4px;">${name}</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          }
-        </script>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-});
+// Barcode Print Window
+const printBarcodeBtn = document.querySelector("#printBarcodeBtn");
+if (printBarcodeBtn) {
+  printBarcodeBtn.addEventListener("click", () => {
+    const sku = document.querySelector("#drawerProductSku").textContent;
+    const name = document.querySelector("#drawerProductName").textContent;
+    
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Barcode - ${sku}</title>
+          <style>
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              text-align: center;
+            }
+            .barcode {
+              font-size: 44px;
+              letter-spacing: 3px;
+              margin-bottom: 8px;
+              font-weight: bold;
+            }
+            .label {
+              font-size: 16px;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="barcode">|||||||||||||||||||||||||</div>
+          <div class="label">${sku}</div>
+          <div style="font-size: 12px; margin-top: 4px;">${name}</div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  });
+}
 
 // Add PO item row creator
 function addPoItemRow() {
