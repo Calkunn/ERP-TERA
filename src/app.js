@@ -3485,8 +3485,8 @@ window.updateNotificationCenter = function(data, profits) {
     const lowStock = Number(item.low_stock || 0);
     const color = item.color || "-";
     const size = item.size || "-";
-    const name = item.product_name || "Produk";
-    const pool = item.pool_name || "Gudang";
+    const name = item.name || "Produk";
+    const pool = item.pool || "Gudang";
     const sku = item.sku || "";
 
     if (qty === 0) {
@@ -3614,7 +3614,7 @@ window.updateNotificationCenter = function(data, profits) {
       insightItems.push(`
         <div class="notification-item info">
           <h4>🏆 ARTIKEL TERPOPULER</h4>
-          <p>Artikel <strong>'${topStock.product_name}'</strong> merupakan aset terbesar Anda saat ini dengan total fisik <strong>${number.format(topStock.total_qty)} pcs</strong> di gudang.</p>
+          <p>Artikel <strong>'${topStock.name}'</strong> merupakan aset terbesar Anda saat ini dengan total fisik <strong>${number.format(topStock.total_qty)} pcs</strong> di gudang.</p>
         </div>
       `);
     }
