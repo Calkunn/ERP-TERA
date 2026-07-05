@@ -1180,8 +1180,8 @@ async function calculateKeuanganReports() {
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
 
-    const cashReceived = bahanKain > 0 ? totalRevenue : operatingIncome;
-    const cashReceivedLabel = bahanKain > 0 ? 'Sales' : 'Operating income';
+    const cashReceived = totalRevenue;
+    const cashReceivedLabel = 'Sales';
 
     let beginningCash = 0;
     if (m === '2026-03') {
