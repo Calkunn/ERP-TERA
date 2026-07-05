@@ -1276,15 +1276,18 @@ function openProductDetailDrawer(variantId) {
   // Render product image or placeholder
   const imgEl = document.querySelector("#drawerProductImg");
   const placeholderEl = document.querySelector("#drawerProductImgPlaceholder");
+  const clearImgBtn = document.querySelector("#drawerClearProductImageBtn");
   if (imgEl && placeholderEl) {
     if (row.image) {
       imgEl.src = row.image;
       imgEl.style.display = "block";
       placeholderEl.style.display = "none";
+      if (clearImgBtn) clearImgBtn.style.display = "block";
     } else {
       imgEl.src = "";
       imgEl.style.display = "none";
       placeholderEl.style.display = "block";
+      if (clearImgBtn) clearImgBtn.style.display = "none";
     }
   }
 
@@ -3919,6 +3922,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (file) {
         const imgEl = document.querySelector("#drawerProductImg");
         const placeholderEl = document.querySelector("#drawerProductImgPlaceholder");
+        const clearImgBtn = document.querySelector("#drawerClearProductImageBtn");
         
         compressAndResizeImage(file, 600, 0.75, (base64) => {
           window.drawerPendingImageBase64 = base64;
@@ -3927,8 +3931,28 @@ document.addEventListener("DOMContentLoaded", () => {
             imgEl.style.display = "block";
             placeholderEl.style.display = "none";
           }
+          if (clearImgBtn) {
+            clearImgBtn.style.display = "block";
+          }
         });
       }
+    });
+  }
+
+  const drawerClearProductImageBtn = document.querySelector("#drawerClearProductImageBtn");
+  if (drawerClearProductImageBtn) {
+    drawerClearProductImageBtn.addEventListener("click", () => {
+      window.drawerPendingImageBase64 = null; // Set to null to remove from database on save
+      const imgEl = document.querySelector("#drawerProductImg");
+      const placeholderEl = document.querySelector("#drawerProductImgPlaceholder");
+      if (imgEl && placeholderEl) {
+        imgEl.src = "";
+        imgEl.style.display = "none";
+        placeholderEl.style.display = "block";
+      }
+      const fileInput = document.querySelector("#drawerProductImageInput");
+      if (fileInput) fileInput.value = "";
+      drawerClearProductImageBtn.style.display = "none";
     });
   }
 });
@@ -3941,38 +3965,51 @@ function compressAndResizeImage(file, maxDimension, quality, callback) {
   }
 
   const reader = new FileReader();
+  reader.onerror = function(err) {
+    console.error("FileReader error:", err);
+    toast("Gagal membaca file gambar: " + err.message);
+  };
   reader.onload = function(e) {
     const img = new Image();
+    img.onerror = function(err) {
+      console.error("Image loading error:", err);
+      toast("Gagal memuat gambar untuk kompresi.");
+    };
     img.onload = function() {
-      const canvas = document.createElement("canvas");
-      let width = img.width;
-      let height = img.height;
+      try {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
 
-      // Fit to maxDimension on the longest edge
-      if (width > height) {
-        if (width > maxDimension) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
+        // Fit to maxDimension on the longest edge
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
         }
-      } else {
-        if (height > maxDimension) {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
-        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        // Draw white background for transparent PNGs before drawing image to avoid black backgrounds in JPEG exports
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Export compressed base64 JPEG data URL
+        const base64 = canvas.toDataURL("image/jpeg", quality);
+        callback(base64);
+      } catch (err) {
+        console.error("Canvas compression error:", err);
+        toast("Gagal mengompresi gambar: " + err.message);
       }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext("2d");
-      // Draw white background for transparent PNGs before drawing image to avoid black backgrounds in JPEG exports
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Export compressed base64 JPEG data URL
-      const base64 = canvas.toDataURL("image/jpeg", quality);
-      callback(base64);
     };
     img.src = e.target.result;
   };

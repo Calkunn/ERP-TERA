@@ -1041,7 +1041,10 @@
             <input name="variantId" type="hidden">
             <div>
               <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Foto Artikel</label>
-              <input type="file" id="drawerProductImageInput" accept="image/*" style="font-size: 11px; padding: 4px; min-height: auto;">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="file" id="drawerProductImageInput" accept="image/*" style="font-size: 11px; padding: 4px; min-height: auto; flex-grow: 1;">
+                <button type="button" id="drawerClearProductImageBtn" class="danger soft mini" style="width: auto; min-height: auto; padding: 6px 10px; font-size: 11px; display: none;">Hapus Foto</button>
+              </div>
               <small style="font-size:10px; color:var(--muted); display:block; margin-top:2px;">Format: JPG/PNG, maks 800KB (akan dikompresi otomatis)</small>
             </div>
             <div>
