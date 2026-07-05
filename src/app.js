@@ -128,9 +128,12 @@ function clearCanvas(canvas) {
 }
 
 function rupiahCompact(val) {
-  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}jt`;
-  if (val >= 1000) return `${(val / 1000).toFixed(0)}rb`;
-  return val;
+  const isNeg = val < 0;
+  const absVal = Math.abs(val);
+  let res = absVal;
+  if (absVal >= 1000000) res = `${(absVal / 1000000).toFixed(1)}jt`;
+  else if (absVal >= 1000) res = `${(absVal / 1000).toFixed(0)}rb`;
+  return isNeg ? `-${res}` : res;
 }
 
 function drawLineChart(canvasId, rows, config) {
@@ -139,6 +142,7 @@ function drawLineChart(canvasId, rows, config) {
   const { ctx, width, height } = clearCanvas(canvas);
   const colors = chartColors();
   const pad = width > 400 ? 42 : 32;
+  
   if (!rows.length) {
     ctx.fillStyle = colors.muted;
     ctx.font = width > 400 ? "13px 'Plus Jakarta Sans', system-ui" : "11px 'Plus Jakarta Sans', system-ui";
@@ -146,7 +150,31 @@ function drawLineChart(canvasId, rows, config) {
     return;
   }
 
-  const max = Math.max(1, ...rows.flatMap((row) => config.series.map((s) => Math.abs(Number(row[s.key] || 0)))));
+  // Initialize zoom and pan state on the canvas element if not exists
+  canvas.zoomState = canvas.zoomState || { scale: 1, panX: 0 };
+
+  // Calculate actual min and max values to handle negative numbers correctly
+  const allValues = rows.flatMap((row) => config.series.map((s) => Number(row[s.key] || 0)));
+  const maxVal = Math.max(...allValues);
+  const minVal = Math.min(...allValues);
+  
+  // Set logical boundaries
+  let min = minVal < 0 ? minVal : 0;
+  let max = maxVal;
+  if (max === min) {
+    max = min + 1;
+  }
+  
+  // Add a 10% padding buffer to the top and bottom so lines don't clip at boundaries
+  const padVal = (max - min) * 0.1 || 1;
+  max += padVal;
+  if (minVal < 0) {
+    min -= padVal;
+  }
+  
+  const range = max - min;
+  const scale = canvas.zoomState.scale;
+  const panX = canvas.zoomState.panX;
   const groupWidth = (width - pad * 2) / Math.max(1, rows.length);
 
   // Draw Horizontal Dashed Gridlines
@@ -162,18 +190,34 @@ function drawLineChart(canvasId, rows, config) {
     ctx.lineTo(width - pad, y);
     ctx.stroke();
 
-    const val = max - (max / 4) * i;
+    const val = max - (range / 4) * i;
     ctx.textAlign = "right";
     ctx.fillText(rupiahCompact(val), pad - 8, y + 3);
   }
   ctx.setLineDash([]); // Reset line dash
 
-  // Draw Data Series
+  // Draw Solid zero baseline if there are negative numbers
+  if (min < 0 && max > 0) {
+    const yZero = height - pad - ((0 - min) / range) * (height - pad * 2);
+    ctx.strokeStyle = colors.text;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, yZero);
+    ctx.lineTo(width - pad, yZero);
+    ctx.stroke();
+  }
+
+  // Draw Data Series (Clipped inside the grid boundaries)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pad, pad, width - pad * 2, height - pad * 2);
+  ctx.clip();
+
   config.series.forEach((series) => {
     const points = rows.map((row, index) => {
-      const x = pad + index * groupWidth + groupWidth / 2;
+      const x = pad + (index * groupWidth * scale) + (groupWidth / 2 * scale) + panX;
       const value = Number(row[series.key] || 0);
-      const y = height - pad - (value / max) * (height - pad * 2);
+      const y = height - pad - ((value - min) / range) * (height - pad * 2);
       return { x, y };
     });
 
@@ -185,14 +229,19 @@ function drawLineChart(canvasId, rows, config) {
     for (let i = 1; i < points.length; i++) {
       ctx.lineTo(points[i].x, points[i].y);
     }
-    const bottomY = height - pad;
-    ctx.lineTo(points[points.length - 1].x, bottomY);
-    ctx.lineTo(points[0].x, bottomY);
+    
+    // Filled area bottom boundary must sit at Y = 0 (or bottom of graph if min is negative)
+    const zeroY = min < 0 
+      ? height - pad - ((0 - min) / range) * (height - pad * 2)
+      : height - pad;
+      
+    ctx.lineTo(points[points.length - 1].x, zeroY);
+    ctx.lineTo(points[0].x, zeroY);
     ctx.closePath();
 
-    const grad = ctx.createLinearGradient(0, pad, 0, bottomY);
-    let rgbaStart = "rgba(245, 158, 11, 0.15)";
-    let rgbaEnd = "rgba(245, 158, 11, 0)";
+    const grad = ctx.createLinearGradient(0, pad, 0, height - pad);
+    let rgbaStart = "rgba(255, 122, 0, 0.15)";
+    let rgbaEnd = "rgba(255, 122, 0, 0)";
     if (series.color === colors.online) {
       const isDark = document.body.classList.contains("dark");
       rgbaStart = isDark ? "rgba(244, 244, 245, 0.12)" : "rgba(9, 9, 11, 0.06)";
@@ -200,6 +249,9 @@ function drawLineChart(canvasId, rows, config) {
     } else if (series.color === colors.offline) {
       rgbaStart = "rgba(113, 113, 122, 0.08)";
       rgbaEnd = "rgba(113, 113, 122, 0)";
+    } else if (series.color === colors.amber) {
+      rgbaStart = "rgba(251, 191, 36, 0.15)";
+      rgbaEnd = "rgba(251, 191, 36, 0)";
     }
 
     grad.addColorStop(0, rgbaStart);
@@ -228,15 +280,21 @@ function drawLineChart(canvasId, rows, config) {
       ctx.stroke();
     });
   });
+  ctx.restore(); // Restore from series clipping mask
 
-  // Draw X Axis Labels
+  // Draw X Axis Labels (Clipped to prevent bleeding outside horizontal graph grid)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pad, height - pad, width - pad * 2, pad);
+  ctx.clip();
   rows.forEach((row, index) => {
-    const x = pad + index * groupWidth + groupWidth / 2;
+    const x = pad + (index * groupWidth * scale) + (groupWidth / 2 * scale) + panX;
     ctx.fillStyle = colors.muted;
     ctx.textAlign = "center";
     ctx.font = width > 400 ? "10px 'Plus Jakarta Sans', system-ui" : "9px 'Plus Jakarta Sans', system-ui";
     ctx.fillText(config.label(row), x, height - 11);
   });
+  ctx.restore();
 
   // Draw Legend Elements
   config.series.forEach((series, index) => {
@@ -254,6 +312,137 @@ function drawLineChart(canvasId, rows, config) {
     ctx.textAlign = "left";
     ctx.fillText(series.label, lx + 14, ly + 3);
   });
+
+  // Bind Pan & Zoom Event Listeners (Once per canvas element)
+  if (!canvas.interactionsInitialized) {
+    canvas.interactionsInitialized = true;
+    
+    let isDragging = false;
+    let startX = 0;
+    let startPanX = 0;
+    
+    canvas.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      const rect = canvas.getBoundingClientRect();
+      // Get internal canvas coordinate
+      startX = (e.clientX - rect.left) / (rect.width / width);
+      startPanX = canvas.zoomState.panX;
+      canvas.style.cursor = "grabbing";
+    });
+    
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const currentX = (e.clientX - rect.left) / (rect.width / width);
+      const dx = currentX - startX;
+      
+      const currentScale = canvas.zoomState.scale;
+      canvas.zoomState.panX = startPanX + dx;
+      
+      // Bound horizontal pan
+      const minPan = (width - pad * 2) * (1 - currentScale);
+      canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
+      
+      drawLineChart(canvasId, rows, config);
+    });
+    
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        canvas.style.cursor = "grab";
+      }
+    });
+    
+    canvas.addEventListener("mouseenter", () => {
+      canvas.style.cursor = "grab";
+    });
+    
+    // Zoom via Scroll Wheel
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) / (rect.width / width);
+      
+      const zoomIntensity = 0.08;
+      const oldScale = canvas.zoomState.scale;
+      const delta = e.deltaY < 0 ? 1 : -1;
+      const newScale = Math.max(1, Math.min(10, oldScale + delta * zoomIntensity * oldScale));
+      
+      if (newScale !== oldScale) {
+        const oldPanX = canvas.zoomState.panX;
+        let newPanX = mouseX - (mouseX - oldPanX) * (newScale / oldScale);
+        
+        const minPan = (width - pad * 2) * (1 - newScale);
+        newPanX = Math.max(minPan, Math.min(0, newPanX));
+        
+        canvas.zoomState.scale = newScale;
+        canvas.zoomState.panX = newPanX;
+        
+        drawLineChart(canvasId, rows, config);
+      }
+    }, { passive: false });
+    
+    // Touch Events for Mobile (Drag and Pinch-to-Zoom)
+    let lastTouchX = 0;
+    let lastTouchDist = 0;
+    
+    canvas.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        lastTouchX = (e.touches[0].clientX - rect.left) / (rect.width / width);
+        startPanX = canvas.zoomState.panX;
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+      }
+    }, { passive: true });
+    
+    canvas.addEventListener("touchmove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches.length === 1 && isDragging) {
+        const currentX = (e.touches[0].clientX - rect.left) / (rect.width / width);
+        const dx = currentX - lastTouchX;
+        canvas.zoomState.panX = canvas.zoomState.panX + dx;
+        
+        const minPan = (width - pad * 2) * (1 - canvas.zoomState.scale);
+        canvas.zoomState.panX = Math.max(minPan, Math.min(0, canvas.zoomState.panX));
+        
+        lastTouchX = currentX;
+        drawLineChart(canvasId, rows, config);
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / (rect.width / width);
+        const oldScale = canvas.zoomState.scale;
+        const ratio = dist / lastTouchDist;
+        const newScale = Math.max(1, Math.min(10, oldScale * ratio));
+        
+        if (newScale !== oldScale) {
+          const oldPanX = canvas.zoomState.panX;
+          let newPanX = midX - (midX - oldPanX) * (newScale / oldScale);
+          
+          const minPan = (width - pad * 2) * (1 - newScale);
+          newPanX = Math.max(minPan, Math.min(0, newPanX));
+          
+          canvas.zoomState.scale = newScale;
+          canvas.zoomState.panX = newPanX;
+          
+          lastTouchDist = dist;
+          drawLineChart(canvasId, rows, config);
+        }
+      }
+    }, { passive: false });
+    
+    canvas.addEventListener("touchend", () => {
+      isDragging = false;
+    }, { passive: true });
+  }
 }
 
 function drawPieChart(canvasId, rows) {
@@ -3202,6 +3391,7 @@ window.showFullScreenChart = function(chartType) {
   const canvas = document.querySelector("#modalChartCanvas");
   if (canvas) {
     canvas.setAttribute("height", "450");
+    canvas.zoomState = { scale: 1, panX: 0 };
   }
   
   // Wait for modal display layout styling to settle before calculating canvas sizes
