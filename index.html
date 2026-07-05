@@ -245,6 +245,10 @@
                 <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Batas Low Stock</label>
                 <input name="lowStock" type="number" min="1" value="5" placeholder="Batas low stock">
               </div>
+              <div>
+                <label style="font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Foto Artikel</label>
+                <input type="file" id="newProductImageInput" accept="image/*" style="font-size: 11px; padding: 4px; min-height: auto;">
+              </div>
               <div style="display:flex; align-items:flex-end;">
                 <button type="submit" style="width:100%;">＋ Tambah</button>
               </div>
@@ -1003,10 +1007,12 @@
         <button type="button" class="drawer-close-btn" id="closeDrawerBtn">&times;</button>
       </div>
       <div class="drawer-content">
-        <div class="product-image-box">
-          <svg viewBox="0 0 24 24" width="64" height="64" fill="var(--muted)">
-            <path d="M4 4h16v3h-4v13H8V7H4V4zm4 5h8v2H8V9zm0 4h8v2H8v-2zm0 4h8v2H8v-2z"/>
-          </svg>
+        <div class="product-image-box" style="position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 16px; box-sizing: border-box;">
+          <img id="drawerProductImg" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+          <div id="drawerProductImgPlaceholder" style="text-align: center; color: var(--muted);">
+            <span style="font-size: 32px; display: block; margin-bottom: 4px;">👕</span>
+            <span style="font-size: 11px; font-weight: 700;">Belum ada foto</span>
+          </div>
         </div>
         <div class="price-grid">
           <div class="price-box">
@@ -1033,6 +1039,11 @@
           <h3>Edit Detail Produk</h3>
           <form id="drawerEditProductForm" class="stack">
             <input name="variantId" type="hidden">
+            <div>
+              <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Foto Artikel</label>
+              <input type="file" id="drawerProductImageInput" accept="image/*" style="font-size: 11px; padding: 4px; min-height: auto;">
+              <small style="font-size:10px; color:var(--muted); display:block; margin-top:2px;">Format: JPG/PNG, maks 800KB (akan dikompresi otomatis)</small>
+            </div>
             <div>
               <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Artikel</label>
               <input name="name" placeholder="Nama Artikel" required>

@@ -1263,6 +1263,26 @@ function openProductDetailDrawer(variantId) {
   const barcodeEl = document.querySelector("#drawerBarcodeText");
   if (barcodeEl) barcodeEl.textContent = `${row.sku}-BC`;
 
+  // Render product image or placeholder
+  const imgEl = document.querySelector("#drawerProductImg");
+  const placeholderEl = document.querySelector("#drawerProductImgPlaceholder");
+  if (imgEl && placeholderEl) {
+    if (row.image) {
+      imgEl.src = row.image;
+      imgEl.style.display = "block";
+      placeholderEl.style.display = "none";
+    } else {
+      imgEl.src = "";
+      imgEl.style.display = "none";
+      placeholderEl.style.display = "block";
+    }
+  }
+
+  // Reset drawer file input & pending data
+  window.drawerPendingImageBase64 = undefined;
+  const imageInput = document.querySelector("#drawerProductImageInput");
+  if (imageInput) imageInput.value = "";
+
   // Populate form
   const form = document.querySelector("#drawerEditProductForm");
   form.variantId.value = row.variant_id;
@@ -1356,8 +1376,14 @@ if (categoryStockTableBody) {
 document.querySelector("#drawerEditProductForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = formData(event.target);
+  if (window.drawerPendingImageBase64 !== undefined) {
+    data.image = window.drawerPendingImageBase64;
+  }
   try {
     await api(`/api/products/${data.variantId}`, { method: "PUT", body: JSON.stringify(data) });
+    window.drawerPendingImageBase64 = undefined;
+    const fileInput = document.querySelector("#drawerProductImageInput");
+    if (fileInput) fileInput.value = "";
     closeDrawer();
     toast("Detail artikel berhasil diperbarui.");
     await refreshAll();
@@ -2289,9 +2315,16 @@ function initSizeSelector() {
 // Add variant
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const data = formData(event.target);
+  if (window.newProductPendingImageBase64) {
+    data.image = window.newProductPendingImageBase64;
+  }
   try {
-    await api("/api/products", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    await api("/api/products", { method: "POST", body: JSON.stringify(data) });
     event.target.reset();
+    window.newProductPendingImageBase64 = null;
+    const fileInput = document.querySelector("#newProductImageInput");
+    if (fileInput) fileInput.value = "";
     selectedSizes = ["M"];
     if (typeof window.updateSelectedUI === "function") {
       window.updateSelectedUI();
@@ -3856,5 +3889,83 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  // Image Upload Compression Bindings
+  const newProductImageInput = document.querySelector("#newProductImageInput");
+  if (newProductImageInput) {
+    newProductImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        compressAndResizeImage(file, 600, 0.75, (base64) => {
+          window.newProductPendingImageBase64 = base64;
+        });
+      }
+    });
+  }
+
+  const drawerProductImageInput = document.querySelector("#drawerProductImageInput");
+  if (drawerProductImageInput) {
+    drawerProductImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const imgEl = document.querySelector("#drawerProductImg");
+        const placeholderEl = document.querySelector("#drawerProductImgPlaceholder");
+        
+        compressAndResizeImage(file, 600, 0.75, (base64) => {
+          window.drawerPendingImageBase64 = base64;
+          if (imgEl && placeholderEl) {
+            imgEl.src = base64;
+            imgEl.style.display = "block";
+            placeholderEl.style.display = "none";
+          }
+        });
+      }
+    });
+  }
 });
+
+// Client-side Image Resizing and Compression Helper
+function compressAndResizeImage(file, maxDimension, quality, callback) {
+  if (!file || !file.type.startsWith("image/")) {
+    alert("File yang diunggah harus berupa gambar!");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement("canvas");
+      let width = img.width;
+      let height = img.height;
+
+      // Fit to maxDimension on the longest edge
+      if (width > height) {
+        if (width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      // Draw white background for transparent PNGs before drawing image to avoid black backgrounds in JPEG exports
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Export compressed base64 JPEG data URL
+      const base64 = canvas.toDataURL("image/jpeg", quality);
+      callback(base64);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 

@@ -49,6 +49,13 @@ async function initDb() {
     // Ignore error if column already exists
   }
 
+  // Run migration to add image to products if not exists
+  try {
+    await db.exec("ALTER TABLE products ADD COLUMN image TEXT");
+  } catch (e) {
+    // Ignore error if column already exists
+  }
+
   // Create and seed auxiliary_balances table if not exists
   try {
     await db.exec(`
@@ -97,7 +104,8 @@ async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'Aktif'
+      status TEXT NOT NULL DEFAULT 'Aktif',
+      image TEXT
     );
     CREATE TABLE IF NOT EXISTS variants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -812,7 +820,7 @@ async function dashboard() {
 
 async function products() {
   return await db.prepare(`
-    SELECT v.id AS variant_id, p.id AS product_id, p.name, p.category, p.status, v.sku, v.size, v.color,
+    SELECT v.id AS variant_id, p.id AS product_id, p.name, p.category, p.status, p.image, v.sku, v.size, v.color,
       v.cost_price, v.sell_price, v.low_stock,
       COALESCE(SUM(CASE WHEN ip.name = 'Online Inventory' THEN ib.qty END), 0) AS online_qty,
       COALESCE(SUM(CASE WHEN ip.name = 'Offline Inventory' THEN ib.qty END), 0) AS offline_qty,
@@ -822,7 +830,7 @@ async function products() {
     LEFT JOIN inventory_balances ib ON ib.variant_id = v.id
     LEFT JOIN inventory_pools ip ON ip.id = ib.pool_id
     WHERE p.status != 'Archived'
-    GROUP BY v.id, p.id, p.name, p.category, p.status, v.sku, v.size, v.color, v.cost_price, v.sell_price, v.low_stock
+    GROUP BY v.id, p.id, p.name, p.category, p.status, p.image, v.sku, v.size, v.color, v.cost_price, v.sell_price, v.low_stock
     ORDER BY p.name, v.sku
   `).all();
 }
@@ -2011,10 +2019,14 @@ async function api(req, res) {
       const existingProduct = await db.prepare("SELECT id FROM products WHERE name = ? AND category = ?").get(name, category);
       if (existingProduct) {
         productId = existingProduct.id;
-        await db.prepare("UPDATE products SET status = 'Aktif' WHERE id = ?").run(productId);
+        if (body.image) {
+          await db.prepare("UPDATE products SET status = 'Aktif', image = ? WHERE id = ?").run(body.image, productId);
+        } else {
+          await db.prepare("UPDATE products SET status = 'Aktif' WHERE id = ?").run(productId);
+        }
       } else {
-        const product = await db.prepare("INSERT INTO products (name, category, status) VALUES (?, ?, 'Aktif')")
-          .run(name, category);
+        const product = await db.prepare("INSERT INTO products (name, category, status, image) VALUES (?, ?, 'Aktif', ?)")
+          .run(name, category, body.image || null);
         productId = product.lastInsertRowid;
       }
 
@@ -2090,8 +2102,13 @@ async function api(req, res) {
     if (!current) return json(res, 404, { error: "Artikel tidak ditemukan" });
     await db.exec("BEGIN");
     try {
-      await db.prepare("UPDATE products SET name = ?, category = ?, status = ? WHERE id = ?")
-        .run(body.name, body.category, body.status || "Aktif", current.product_id);
+      if (body.image !== undefined) {
+        await db.prepare("UPDATE products SET name = ?, category = ?, status = ?, image = ? WHERE id = ?")
+          .run(body.name, body.category, body.status || "Aktif", body.image, current.product_id);
+      } else {
+        await db.prepare("UPDATE products SET name = ?, category = ?, status = ? WHERE id = ?")
+          .run(body.name, body.category, body.status || "Aktif", current.product_id);
+      }
       await db.prepare(`
         UPDATE variants
         SET sku = ?, size = ?, color = ?, cost_price = ?, sell_price = ?, low_stock = ?
