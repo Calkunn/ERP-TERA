@@ -1455,7 +1455,62 @@ async function callGemini(systemInstruction, userMessage, history = []) {
 async function api(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  if (req.method === "GET" && url.pathname === "/api/debug-push-db") {
+    const isSqlite = dbStorage.getStore()?.db?.isSqlite || false;
+    const diagnostics = {
+      isSqlite,
+      dbInitialized,
+      vapidKeysLoadedBefore: !!vapidKeys,
+      errors: []
+    };
+    
+    // Attempt database migration manually
+    try {
+      await initDb();
+      diagnostics.initDbSuccess = true;
+    } catch (e) {
+      diagnostics.initDbSuccess = false;
+      diagnostics.errors.push("initDb error: " + e.message);
+    }
+    
+    // Attempt initVapid manually
+    try {
+      await initVapid();
+      diagnostics.initVapidSuccess = true;
+      diagnostics.publicKey = vapidKeys ? vapidKeys.publicKey : null;
+    } catch (e) {
+      diagnostics.initVapidSuccess = false;
+      diagnostics.errors.push("initVapid error: " + e.message);
+    }
+
+    // Inspect tables
+    try {
+      if (isSqlite) {
+        const tables = await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+        diagnostics.tables = tables.map(t => t.name);
+      } else {
+        const tables = await db.prepare("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'").all();
+        diagnostics.tables = tables.map(t => t.table_name);
+      }
+    } catch (e) {
+      diagnostics.errors.push("Inspect tables error: " + e.message);
+    }
+
+    // Inspect app_settings content
+    try {
+      const settings = await db.prepare("SELECT * FROM app_settings").all();
+      diagnostics.settings = settings;
+    } catch (e) {
+      diagnostics.errors.push("Inspect app_settings error: " + e.message);
+    }
+
+    return json(res, 200, diagnostics);
+  }
+
   if (req.method === "GET" && url.pathname === "/api/push/public-key") {
+    if (!vapidKeys) {
+      await initVapid();
+    }
     return json(res, 200, { publicKey: vapidKeys ? vapidKeys.publicKey : null });
   }
 
