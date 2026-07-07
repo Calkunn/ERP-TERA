@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { extname, join } from "node:path";
 import { getDbClient } from "./db.mjs";
 import { AsyncLocalStorage } from "node:async_hooks";
+import webpush from "web-push";
 
 const root = process.cwd();
 const sessions = new Map();
@@ -54,6 +55,33 @@ async function initDb() {
     await db.exec("ALTER TABLE products ADD COLUMN image TEXT");
   } catch (e) {
     // Ignore error if column already exists
+  }
+
+  // Create app_settings table if not exists
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+  } catch (e) {
+    console.error("Migration error for app_settings:", e);
+  }
+
+  // Create push_subscriptions table if not exists
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e) {
+    console.error("Migration error for push_subscriptions:", e);
   }
 
   // Create and seed auxiliary_balances table if not exists
@@ -327,6 +355,74 @@ async function initDb() {
   await migrateDuplicateProducts();
   await migrateOfflineRevenuesToNet();
   await migrateRndExpenses();
+}
+
+let vapidKeys = null;
+async function initVapid() {
+  if (vapidKeys) return;
+  try {
+    const pub = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_public_key'").get();
+    const priv = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private_key'").get();
+    
+    if (pub && priv) {
+      vapidKeys = { publicKey: pub.value, privateKey: priv.value };
+    } else {
+      console.log("VAPID keys not found in database. Generating fresh keypair...");
+      const keys = webpush.generateVAPIDKeys();
+      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_public_key', ?)").run(keys.publicKey);
+      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_private_key', ?)").run(keys.privateKey);
+      vapidKeys = keys;
+    }
+    
+    webpush.setVapidDetails(
+      "mailto:admin@tera-erp.local",
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+    console.log("Web Push VAPID initialized successfully.");
+  } catch (e) {
+    console.error("Failed to initialize VAPID details:", e);
+  }
+}
+
+async function triggerBookkeepingPushNotifications(prevMonthStr) {
+  try {
+    const subscriptions = await db.prepare("SELECT * FROM push_subscriptions").all();
+    if (subscriptions.length === 0) return;
+
+    const [year, month] = prevMonthStr.split("-");
+    const monthNames = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    const indonesianMonthName = monthNames[parseInt(month, 10) - 1] || month;
+    const monthLabel = `${indonesianMonthName} ${year}`;
+
+    const payload = JSON.stringify({
+      title: "⚠️ Peringatan Pembukuan",
+      body: `Rekapitulasi pembukuan untuk bulan ${monthLabel} belum diinput. Harap segera lengkapi laporan Anda!`,
+      url: "/#keuangan"
+    });
+
+    console.log(`Sending bookkeeping push notification for ${prevMonthStr} to ${subscriptions.length} subscribers...`);
+    for (const sub of subscriptions) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: {
+            auth: sub.auth,
+            p256dh: sub.p256dh
+          }
+        }, payload);
+      } catch (err) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(sub.endpoint);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to send push notifications:", e);
+  }
 }
 
 async function migrateRndExpenses() {
@@ -815,6 +911,42 @@ async function dashboard() {
     GROUP BY substr(CAST(created_at AS TEXT), 1, 7)
     ORDER BY month ASC
   `).all();
+
+  // Background check and trigger for bookkeeping push notifications
+  try {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed
+    const currentDay = today.getDate();
+
+    let prevYear = currentYear;
+    let prevMonth = currentMonth;
+    if (currentMonth === 0) {
+      prevYear--;
+      prevMonth = 12;
+    }
+    const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+
+    const hasData = await db.prepare("SELECT id FROM monthly_revenues WHERE month = ?").get(prevMonthStr);
+    if (!hasData) {
+      // Check if today is in the warning period (24th to end of month, or 1st to 10th of next month)
+      if (currentDay >= 24 || currentDay <= 10) {
+        const todayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(currentDay).padStart(2, "0")}`;
+        const lastSent = await db.prepare("SELECT value FROM app_settings WHERE key = 'last_bookkeeping_push_date'").get();
+        if (!lastSent || lastSent.value !== todayStr) {
+          if (!lastSent) {
+            await db.prepare("INSERT INTO app_settings (key, value) VALUES ('last_bookkeeping_push_date', ?)").run(todayStr);
+          } else {
+            await db.prepare("UPDATE app_settings SET value = ? WHERE key = 'last_bookkeeping_push_date'").run(todayStr);
+          }
+          triggerBookkeepingPushNotifications(prevMonthStr).catch(err => console.error("Error in background push:", err));
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error checking bookkeeping warning push notification:", e);
+  }
+
   return { revenue, inventory, stockByArticle, lowStock, monthlyRevenue, monthlyStockMovement };
 }
 
@@ -1322,6 +1454,71 @@ async function callGemini(systemInstruction, userMessage, history = []) {
 
 async function api(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === "GET" && url.pathname === "/api/push/public-key") {
+    return json(res, 200, { publicKey: vapidKeys ? vapidKeys.publicKey : null });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/push/subscribe") {
+    const body = await readJson(req);
+    if (!body.endpoint || !body.keys?.p256dh || !body.keys?.auth) {
+      return json(res, 400, { error: "Data subskripsi tidak lengkap" });
+    }
+    try {
+      const exists = await db.prepare("SELECT id FROM push_subscriptions WHERE endpoint = ?").get(body.endpoint);
+      if (exists) {
+        await db.prepare("UPDATE push_subscriptions SET p256dh = ?, auth = ? WHERE endpoint = ?")
+          .run(body.keys.p256dh, body.keys.auth, body.endpoint);
+      } else {
+        await db.prepare("INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (?, ?, ?)")
+          .run(body.endpoint, body.keys.p256dh, body.keys.auth);
+      }
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      return json(res, 500, { error: e.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/push/unsubscribe") {
+    const body = await readJson(req);
+    if (!body.endpoint) {
+      return json(res, 400, { error: "Endpoint wajib diisi" });
+    }
+    await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(body.endpoint);
+    return json(res, 200, { ok: true });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/push/test") {
+    const subscriptions = await db.prepare("SELECT * FROM push_subscriptions").all();
+    const payload = JSON.stringify({
+      title: "Uji Coba TERA ERP 🎯",
+      body: "Halo! Notifikasi uji coba PWA TERA ERP Anda berhasil dikirim ke perangkat ini.",
+      url: "/#keuangan"
+    });
+    
+    let sentCount = 0;
+    let failCount = 0;
+    
+    for (const sub of subscriptions) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: {
+            auth: sub.auth,
+            p256dh: sub.p256dh
+          }
+        }, payload);
+        sentCount++;
+      } catch (err) {
+        failCount++;
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(sub.endpoint);
+        }
+      }
+    }
+    
+    return json(res, 200, { ok: true, sentCount, failCount });
+  }
 
   if (req.method === "POST" && url.pathname === "/api/auth/login") {
     const body = await readJson(req);
@@ -2609,6 +2806,7 @@ async function ensureDbInitialized(client) {
   if (dbInitialized) return;
   await dbStorage.run(client, async () => {
     await initDb();
+    await initVapid();
   });
   dbInitialized = true;
 }

@@ -840,7 +840,30 @@
                 </div>
                 <button type="button" id="saveSettingBtn" style="width: fit-content; padding: 10px 20px; font-weight: 800; border-radius: 8px; cursor: pointer; background: var(--accent); color: #fff; border: none; transition: opacity 0.2s ease;">Simpan Pengaturan</button>
               </div>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Notifikasi Layar Kunci (Web Push iOS/Android)</h2>
+                <span class="hint">Aktifkan push notifikasi rekap pembukuan langsung di HP iPhone/Android Anda</span>
+              </div>
+              <div class="stack" style="padding: 24px; gap: 16px;">
+                <p style="font-size: 13px; color: var(--muted); line-height: 1.6;">
+                  Web Push memungkinkan perangkat Anda menerima pengingat rekapitulasi keuangan bulanan pada layar kunci iPhone/Android meskipun aplikasi TERA ERP sedang ditutup.
+                </p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 12px; font-weight: 700; color: var(--muted);">Status Perangkat Ini:</span>
+                  <span id="pushStatusBadge" class="badge offline" style="font-size: 11px; padding: 4px 8px; border-radius: 6px; font-weight: bold;">Mengecek...</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+                  <button type="button" id="pushEnableBtn" style="padding: 10px 18px; font-weight: 800; border-radius: 8px; cursor: pointer; background: var(--accent); color: #fff; border: none; display: none;">🔔 Aktifkan Notifikasi</button>
+                  <button type="button" id="pushTestBtn" class="secondary" style="padding: 10px 18px; font-weight: 800; border-radius: 8px; cursor: pointer; display: none;">🎯 Kirim Notifikasi Uji Coba</button>
+                  <button type="button" id="pushDisableBtn" class="danger soft" style="padding: 10px 18px; font-weight: 800; border-radius: 8px; cursor: pointer; display: none;">🔕 Nonaktifkan Notifikasi</button>
+                </div>
+                <p id="pushIosNote" style="font-size: 11px; color: var(--muted); display: none; margin-top: 4px; line-height: 1.5;">
+                  *<strong>Khusus Pengguna iPhone (iOS)</strong>: Anda wajib menambahkan aplikasi ini ke Layar Utama (Add to Home Screen) terlebih dahulu agar tombol di atas dapat diaktifkan.
+                </p>
+              </div>
             </section>
+            
             
             <section class="panel" style="border-color: rgba(239, 68, 68, 0.25);">
               <div class="panel-head" style="border-bottom-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.02);">

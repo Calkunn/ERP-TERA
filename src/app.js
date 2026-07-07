@@ -3955,6 +3955,139 @@ document.addEventListener("DOMContentLoaded", () => {
       drawerClearProductImageBtn.style.display = "none";
     });
   }
+
+  // --- WEB PUSH MANAGEMENT ---
+  const pushStatusBadge = document.querySelector("#pushStatusBadge");
+  const pushEnableBtn = document.querySelector("#pushEnableBtn");
+  const pushTestBtn = document.querySelector("#pushTestBtn");
+  const pushDisableBtn = document.querySelector("#pushDisableBtn");
+  const pushIosNote = document.querySelector("#pushIosNote");
+
+  async function checkPushSubscription() {
+    if (!pushStatusBadge) return;
+
+    // Check support
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      pushStatusBadge.textContent = "Tidak Didukung";
+      pushStatusBadge.className = "badge offline";
+      if (pushIosNote) pushIosNote.style.display = "block";
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      
+      if (sub) {
+        pushStatusBadge.textContent = "Aktif";
+        pushStatusBadge.className = "badge marketplace"; // green/active
+        if (pushEnableBtn) pushEnableBtn.style.display = "none";
+        if (pushTestBtn) pushTestBtn.style.display = "inline-block";
+        if (pushDisableBtn) pushDisableBtn.style.display = "inline-block";
+      } else {
+        pushStatusBadge.textContent = "Belum Aktif";
+        pushStatusBadge.className = "badge offline";
+        if (pushEnableBtn) pushEnableBtn.style.display = "inline-block";
+        if (pushTestBtn) pushTestBtn.style.display = "none";
+        if (pushDisableBtn) pushDisableBtn.style.display = "none";
+      }
+    } catch (err) {
+      console.warn("Error checking push subscription:", err);
+      pushStatusBadge.textContent = "Error";
+      pushStatusBadge.className = "badge offline";
+    }
+  }
+
+  // Helper to convert public key
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  if (pushEnableBtn) {
+    pushEnableBtn.addEventListener("click", async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          alert("Izin notifikasi ditolak. Harap izinkan notifikasi pada pengaturan browser/HP Anda.");
+          return;
+        }
+
+        // Get VAPID public key
+        const keyRes = await api("/api/push/public-key");
+        if (!keyRes.publicKey) {
+          alert("Gagal mengambil kunci publik push dari server.");
+          return;
+        }
+
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(keyRes.publicKey)
+        });
+
+        // Send to server
+        await api("/api/push/subscribe", {
+          method: "POST",
+          body: JSON.stringify(sub)
+        });
+
+        toast("Notifikasi push berhasil diaktifkan!");
+        checkPushSubscription();
+      } catch (err) {
+        console.error("Gagal mendaftarkan notifikasi push:", err);
+        alert("Gagal mengaktifkan notifikasi: " + err.message);
+      }
+    });
+  }
+
+  if (pushDisableBtn) {
+    pushDisableBtn.addEventListener("click", async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await sub.unsubscribe();
+          // Send to server to delete
+          await api("/api/push/unsubscribe", {
+            method: "POST",
+            body: JSON.stringify({ endpoint: sub.endpoint })
+          });
+        }
+        toast("Notifikasi push dinonaktifkan.");
+        checkPushSubscription();
+      } catch (err) {
+        console.error("Gagal menonaktifkan notifikasi push:", err);
+        alert("Error: " + err.message);
+      }
+    });
+  }
+
+  if (pushTestBtn) {
+    pushTestBtn.addEventListener("click", async () => {
+      try {
+        const res = await api("/api/push/test", { method: "POST" });
+        if (res.ok) {
+          toast("Notifikasi uji coba dikirim!");
+        } else {
+          alert("Gagal mengirim notifikasi uji coba.");
+        }
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    });
+  }
+
+  // Trigger check on load
+  checkPushSubscription();
 });
 
 // Client-side Image Resizing and Compression Helper
