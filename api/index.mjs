@@ -360,28 +360,49 @@ async function initDb() {
 let vapidKeys = null;
 async function initVapid() {
   if (vapidKeys) return;
-  try {
-    const pub = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_public_key'").get();
-    const priv = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private_key'").get();
-    
-    if (pub && priv) {
-      vapidKeys = { publicKey: pub.value, privateKey: priv.value };
-    } else {
-      console.log("VAPID keys not found in database. Generating fresh keypair...");
+  
+  // 1. Check if VAPID keys are provided in environment variables (Vercel env)
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    vapidKeys = {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY
+    };
+    console.log("Web Push VAPID loaded from environment variables.");
+  } else {
+    // 2. Fall back to database app_settings table
+    try {
+      const pub = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_public_key'").get();
+      const priv = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private_key'").get();
+      
+      if (pub && priv) {
+        vapidKeys = { publicKey: pub.value, privateKey: priv.value };
+        console.log("Web Push VAPID loaded from database settings.");
+      } else {
+        console.log("VAPID keys not found in database or environment. Generating fresh keypair...");
+        const keys = webpush.generateVAPIDKeys();
+        await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_public_key', ?)").run(keys.publicKey);
+        await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_private_key', ?)").run(keys.privateKey);
+        vapidKeys = keys;
+      }
+    } catch (e) {
+      console.error("Failed to load VAPID details from database, generating temp in-memory keypair:", e);
+      // Fallback: Generate in-memory temporary keys so it at least works for testing in this session
       const keys = webpush.generateVAPIDKeys();
-      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_public_key', ?)").run(keys.publicKey);
-      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('vapid_private_key', ?)").run(keys.privateKey);
       vapidKeys = keys;
     }
-    
-    webpush.setVapidDetails(
-      "mailto:admin@tera-erp.local",
-      vapidKeys.publicKey,
-      vapidKeys.privateKey
-    );
-    console.log("Web Push VAPID initialized successfully.");
-  } catch (e) {
-    console.error("Failed to initialize VAPID details:", e);
+  }
+  
+  if (vapidKeys) {
+    try {
+      webpush.setVapidDetails(
+        "mailto:admin@tera-erp.local",
+        vapidKeys.publicKey,
+        vapidKeys.privateKey
+      );
+      console.log("Web Push VAPID details registered successfully.");
+    } catch (e) {
+      console.error("Failed to set VAPID details:", e);
+    }
   }
 }
 
