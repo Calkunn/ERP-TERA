@@ -3971,6 +3971,9 @@ document.addEventListener("DOMContentLoaded", () => {
       pushStatusBadge.textContent = "Tidak Didukung";
       pushStatusBadge.className = "badge offline";
       if (pushIosNote) pushIosNote.style.display = "block";
+      if (pushEnableBtn) pushEnableBtn.style.display = "none";
+      if (pushTestBtn) pushTestBtn.style.display = "none";
+      if (pushDisableBtn) pushDisableBtn.style.display = "none";
       return;
     }
 
@@ -3988,9 +3991,10 @@ document.addEventListener("DOMContentLoaded", () => {
         pushStatusBadge.textContent = "Belum Aktif";
         pushStatusBadge.className = "badge offline";
         if (pushEnableBtn) pushEnableBtn.style.display = "inline-block";
-        if (pushTestBtn) pushTestBtn.style.display = "none";
+        if (pushTestBtn) pushTestBtn.style.display = "inline-block";
         if (pushDisableBtn) pushDisableBtn.style.display = "none";
       }
+      if (pushIosNote) pushIosNote.style.display = "none";
     } catch (err) {
       console.warn("Error checking push subscription:", err);
       pushStatusBadge.textContent = "Error";
@@ -4074,6 +4078,13 @@ document.addEventListener("DOMContentLoaded", () => {
   if (pushTestBtn) {
     pushTestBtn.addEventListener("click", async () => {
       try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          alert("Perangkat Anda belum terdaftar! Silakan klik tombol '🔔 Aktifkan Notifikasi' terlebih dahulu.");
+          return;
+        }
+
         const res = await api("/api/push/test", { method: "POST" });
         if (res.ok) {
           toast("Notifikasi uji coba dikirim!");
