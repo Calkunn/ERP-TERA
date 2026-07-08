@@ -1604,6 +1604,7 @@ async function api(req, res) {
     
     let sentCount = 0;
     let failCount = 0;
+    const errors = [];
     
     for (const sub of subscriptions) {
       try {
@@ -1617,6 +1618,12 @@ async function api(req, res) {
         sentCount++;
       } catch (err) {
         console.error("Test notification delivery failed for endpoint:", sub.endpoint, err);
+        errors.push({
+          endpoint: sub.endpoint,
+          statusCode: err.statusCode || null,
+          message: err.message || null,
+          body: err.body || null
+        });
         failCount++;
         if (err.statusCode === 410 || err.statusCode === 404) {
           await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(sub.endpoint);
@@ -1624,7 +1631,7 @@ async function api(req, res) {
       }
     }
     
-    return json(res, 200, { ok: true, sentCount, failCount });
+    return json(res, 200, { ok: true, sentCount, failCount, errors });
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/login") {
