@@ -1539,6 +1539,14 @@ async function api(req, res) {
       diagnostics.errors.push("Inspect app_settings error: " + e.message);
     }
 
+    // Inspect push_subscriptions count
+    try {
+      const subs = await db.prepare("SELECT COUNT(*) as count FROM push_subscriptions").get();
+      diagnostics.pushSubscriptionsCount = subs ? subs.count : 0;
+    } catch (e) {
+      diagnostics.errors.push("Inspect push_subscriptions error: " + e.message);
+    }
+
     return json(res, 200, diagnostics);
   }
 
@@ -1608,6 +1616,7 @@ async function api(req, res) {
         }, payload);
         sentCount++;
       } catch (err) {
+        console.error("Test notification delivery failed for endpoint:", sub.endpoint, err);
         failCount++;
         if (err.statusCode === 410 || err.statusCode === 404) {
           await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(sub.endpoint);
