@@ -4089,7 +4089,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pushTestBtn.disabled = true;
         const originalText = pushTestBtn.innerHTML;
 
-        // Start 5-second countdown
+        // Start 5-second countdown purely for visual representation
         let seconds = 5;
         const interval = setInterval(() => {
           seconds--;
@@ -4097,27 +4097,32 @@ document.addEventListener("DOMContentLoaded", () => {
             pushTestBtn.innerHTML = `⏳ Mengirim dalam ${seconds}s...`;
           } else {
             clearInterval(interval);
+            pushTestBtn.innerHTML = `🚀 Sedang Mengirim...`;
           }
         }, 1000);
 
         pushTestBtn.innerHTML = `⏳ Mengirim dalam 5s...`;
         toast("Kunci layar HP Anda sekarang!");
 
-        // Wait 5 seconds using Promise
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Fire request immediately. The server will handle the 5-second delay!
+        api("/api/push/test", { method: "POST" })
+          .then(res => {
+            if (res && res.ok) {
+              toast("Notifikasi uji coba terkirim!");
+            }
+          })
+          .catch(err => {
+            // Silently swallow fetch errors (e.g. background suspension on lock screen)
+            console.warn("Background push test request finished with status:", err);
+          })
+          .finally(() => {
+            clearInterval(interval);
+            pushTestBtn.disabled = false;
+            pushTestBtn.innerHTML = originalText;
+          });
 
-        const res = await api("/api/push/test", { method: "POST" });
-        if (res.ok) {
-          toast("Notifikasi uji coba dikirim!");
-        } else {
-          alert("Gagal mengirim notifikasi uji coba.");
-        }
-
-        // Restore button state
-        pushTestBtn.disabled = false;
-        pushTestBtn.innerHTML = originalText;
       } catch (err) {
-        alert("Error: " + err.message);
+        console.warn("Push test setup error:", err);
         if (pushTestBtn) {
           pushTestBtn.disabled = false;
           pushTestBtn.innerHTML = "🎯 Kirim Notifikasi Uji Coba";

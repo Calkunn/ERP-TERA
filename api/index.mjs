@@ -1595,6 +1595,9 @@ async function api(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/push/test") {
+    // Wait 5 seconds on the server side to allow the user to lock their screen
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     const subscriptions = await db.prepare("SELECT * FROM push_subscriptions").all();
     const payload = JSON.stringify({
       title: "Uji Coba TERA ERP 🎯",
