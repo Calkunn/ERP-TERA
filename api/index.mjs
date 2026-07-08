@@ -361,7 +361,7 @@ let vapidKeys = null;
 async function initVapid() {
   if (vapidKeys) return;
   
-  // 1. Check if VAPID keys are provided in environment variables (Vercel env)
+  // 1. Check if VAPID keys are provided in environment variables (Vercel env) - latest deployment trigger
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     vapidKeys = {
       publicKey: process.env.VAPID_PUBLIC_KEY,
@@ -1473,7 +1473,21 @@ async function callGemini(systemInstruction, userMessage, history = []) {
   return text;
 }
 
+export async function cors(req, res) {
+  // Allow any origin (or replace * with your domain) for public push API
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') {
+    // Short‑circuit preflight requests
+    return json(res, 200, {});
+  }
+}
+
 async function api(req, res) {
+  // Apply CORS handling for every request
+  const corsResult = await cors(req, res);
+  if (corsResult) return corsResult; // OPTIONS preflight already responded
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === "GET" && url.pathname === "/api/debug-push-db") {
@@ -1526,6 +1540,14 @@ async function api(req, res) {
     }
 
     return json(res, 200, diagnostics);
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/debug-env") {
+    return json(res, 200, {
+      VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || null,
+      VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || null,
+      vapidKeysInMemory: vapidKeys ? true : false
+    });
   }
 
   if (req.method === "GET" && url.pathname === "/api/push/public-key") {
