@@ -4085,14 +4085,43 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
+        // Disable button to prevent double-clicks
+        pushTestBtn.disabled = true;
+        const originalText = pushTestBtn.innerHTML;
+
+        // Start 5-second countdown
+        let seconds = 5;
+        const interval = setInterval(() => {
+          seconds--;
+          if (seconds > 0) {
+            pushTestBtn.innerHTML = `⏳ Mengirim dalam ${seconds}s...`;
+          } else {
+            clearInterval(interval);
+          }
+        }, 1000);
+
+        pushTestBtn.innerHTML = `⏳ Mengirim dalam 5s...`;
+        toast("Kunci layar HP Anda sekarang!");
+
+        // Wait 5 seconds using Promise
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
         const res = await api("/api/push/test", { method: "POST" });
         if (res.ok) {
           toast("Notifikasi uji coba dikirim!");
         } else {
           alert("Gagal mengirim notifikasi uji coba.");
         }
+
+        // Restore button state
+        pushTestBtn.disabled = false;
+        pushTestBtn.innerHTML = originalText;
       } catch (err) {
         alert("Error: " + err.message);
+        if (pushTestBtn) {
+          pushTestBtn.disabled = false;
+          pushTestBtn.innerHTML = "🎯 Kirim Notifikasi Uji Coba";
+        }
       }
     });
   }
