@@ -364,10 +364,10 @@ async function initVapid() {
   // 1. Check if VAPID keys are provided in environment variables (Vercel env) - latest deployment trigger
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     vapidKeys = {
-      publicKey: process.env.VAPID_PUBLIC_KEY,
-      privateKey: process.env.VAPID_PRIVATE_KEY
+      publicKey: process.env.VAPID_PUBLIC_KEY.trim(),
+      privateKey: process.env.VAPID_PRIVATE_KEY.trim()
     };
-    console.log("Web Push VAPID loaded from environment variables.");
+    console.log("Web Push VAPID loaded from environment variables (trimmed).");
   } else {
     // 2. Fall back to database app_settings table
     try {
@@ -375,7 +375,7 @@ async function initVapid() {
       const priv = await db.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private_key'").get();
       
       if (pub && priv) {
-        vapidKeys = { publicKey: pub.value, privateKey: priv.value };
+        vapidKeys = { publicKey: pub.value.trim(), privateKey: priv.value.trim() };
         console.log("Web Push VAPID loaded from database settings.");
       } else {
         console.log("VAPID keys not found in database or environment. Generating fresh keypair...");
@@ -394,12 +394,14 @@ async function initVapid() {
   
   if (vapidKeys) {
     try {
+      // APNs and FCM require a valid URL or mailto address to contact the sender.
+      // Using a local/invalid address like 'admin@tera-erp.local' causes 403 (BadJwtToken) on iOS.
       webpush.setVapidDetails(
-        "mailto:admin@tera-erp.local",
+        "mailto:calkunn@gmail.com",
         vapidKeys.publicKey,
         vapidKeys.privateKey
       );
-      console.log("Web Push VAPID details registered successfully.");
+      console.log("Web Push VAPID details registered successfully with valid contact subject.");
     } catch (e) {
       console.error("Failed to set VAPID details:", e);
     }
