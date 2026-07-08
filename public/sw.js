@@ -7,7 +7,11 @@ self.addEventListener("activate", event => {
 });
 
 self.addEventListener("fetch", event => {
-  // Pass-through service worker to fulfill PWA install criteria
+  // Pass-through service worker to fulfill PWA install criteria.
+  // Do NOT intercept non-GET requests or API calls to prevent Safari "TypeError: Load failed" issues.
+  if (event.request.method !== "GET" || event.request.url.includes("/api/")) {
+    return;
+  }
   event.respondWith(fetch(event.request));
 });
 
