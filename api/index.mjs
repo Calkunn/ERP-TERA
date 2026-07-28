@@ -2931,8 +2931,9 @@ async function ensureDbInitialized(client) {
 }
 
 export default async function handler(req, res) {
-  const client = await getDbClient();
+  let client;
   try {
+    client = await getDbClient();
     await ensureDbInitialized(client);
     await dbStorage.run(client, async () => {
       if (req.url.startsWith("/api/")) {
@@ -2947,6 +2948,6 @@ export default async function handler(req, res) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: error.message }));
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
