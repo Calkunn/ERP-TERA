@@ -1372,7 +1372,7 @@ async function calculateKeuanganReports() {
     
     const biayaGaji = bayarDavid;
     const otherExpenses = otherCost; 
-    const totalCashDisbursement = bahanKain + biayaGaji + otherExpenses;
+    const totalCashDisbursement = bahanKain + biayaGaji + otherExpenses + distributedProfit;
     const endingCash = totalCashAvailable - totalCashDisbursement;
 
     monthlyReports.push({
