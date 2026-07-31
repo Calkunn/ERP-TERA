@@ -1398,11 +1398,15 @@ async function calculateKeuanganReports() {
 
     // Produksi & Bahan Baku are excluded from the Income Statement (they are capitalized in inventory and deducted via COGS).
     const netIncome = operatingIncome - otherCost - bayarDavid;
-    const retainedEarnings = Math.round(netIncome * (retainedPct / 100));
-    const distributedProfit = Math.round(netIncome * (distributedPct / 100));
-
-    cumulativeRetained += retainedEarnings;
-    cumulativeDistributed += distributedProfit;
+    
+    let retainedEarnings = 0;
+    let distributedProfit = 0;
+    if (m >= '2026-07') {
+      retainedEarnings = Math.round(netIncome * (retainedPct / 100));
+      distributedProfit = Math.round(netIncome * (distributedPct / 100));
+      cumulativeRetained += retainedEarnings;
+      cumulativeDistributed += distributedProfit;
+    }
 
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
