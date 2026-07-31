@@ -864,6 +864,25 @@
               </div>
             </section>
             
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Pembagian Laba (Profit Sharing)</h2>
+                <span class="hint">Tentukan persentase alokasi laba ditahan dan laba dibagikan</span>
+              </div>
+              <div class="stack" style="padding: 24px; gap: 14px;">
+                <div style="display: grid; gap: 6px;">
+                  <label style="font-size: 12px; font-weight: 700; color: var(--muted);">Laba Ditahan (%)</label>
+                  <input type="number" id="settingRetainedEarningsPct" min="0" max="100" value="60" style="padding: 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);">
+                  <span class="hint" style="font-size: 10px; color: var(--muted);">Persentase laba bersih yang ditahan untuk modal/operasional perusahaan.</span>
+                </div>
+                <div style="display: grid; gap: 6px;">
+                  <label style="font-size: 12px; font-weight: 700; color: var(--muted);">Laba Dibagikan (%)</label>
+                  <input type="number" id="settingDistributedProfitPct" min="0" max="100" value="40" style="padding: 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);">
+                  <span class="hint" style="font-size: 10px; color: var(--muted);">Persentase laba bersih yang dibagikan kepada owner/pemegang saham.</span>
+                </div>
+                <button type="button" id="saveProfitSharingBtn" style="width: fit-content; padding: 10px 20px; font-weight: 800; border-radius: 8px; cursor: pointer; background: var(--accent); color: #fff; border: none; transition: opacity 0.2s ease;">Simpan Pembagian Laba</button>
+              </div>
+            </section>
             
             <section class="panel" style="border-color: rgba(239, 68, 68, 0.25);">
               <div class="panel-head" style="border-bottom-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.02);">

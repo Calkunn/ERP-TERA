@@ -419,20 +419,29 @@ function showLogin() {
 }
 
 async function loadDashboard() {
-  const [data, profits] = await Promise.all([
+  const [data, profits, reports] = await Promise.all([
     api("/api/dashboard"),
-    api("/api/profit-summary")
+    api("/api/profit-summary"),
+    api("/api/keuangan/reports")
   ]);
   window.dashboardData = data;
   
-  const totalMonthlyRevenue = data.monthlyRevenue.at(-1)?.total || 0;
-  const latestProfit = profits[0]?.profit || 0;
+  const latestReport = reports.at(-1) || { totalRevenue: 0, netIncome: 0, retainedEarnings: 0, distributedProfit: 0, retainedPct: 60, distributedPct: 40 };
+  const totalMonthlyRevenue = latestReport.totalRevenue;
+  const latestProfit = latestReport.netIncome;
+  const retainedEarnings = latestReport.retainedEarnings || 0;
+  const distributedProfit = latestReport.distributedProfit || 0;
+  const retainedPct = latestReport.retainedPct || 60;
+  const distributedPct = latestReport.distributedPct || 40;
+
   const stockQty = data.inventory.reduce((sum, row) => sum + Number(row.qty || 0), 0);
   const stockValue = data.inventory.reduce((sum, row) => sum + Number(row.value || 0), 0);
 
   document.querySelector("#metrics").innerHTML = [
     ["Revenue Bulan Ini", rupiah.format(totalMonthlyRevenue)],
     ["Laba Bersih", rupiah.format(latestProfit)],
+    [`Laba Ditahan (${retainedPct}%)`, rupiah.format(retainedEarnings)],
+    [`Laba Dibagikan (${distributedPct}%)`, rupiah.format(distributedProfit)],
     ["Total Stock", `${number.format(stockQty)} pcs`],
     ["Nilai Inventory", rupiah.format(stockValue)]
   ].map(([label, value]) => `<article class="metric"><span>${label}</span><strong>${value}</strong></article>`).join("");
@@ -2700,6 +2709,14 @@ function renderIncomeStatement(data) {
       <td>Net Income</td>
       ${data.map(m => `<td style="text-align:right;" class="cash-highlight">${rupiah.format(m.netIncome)}</td>`).join("")}
     </tr>
+    <tr>
+      <td>Laba Ditahan <span class="formula-note">(${data[0]?.retainedPct || 60}%)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.retainedEarnings)}</td>`).join("")}
+    </tr>
+    <tr>
+      <td>Laba Dibagikan <span class="formula-note">(${data[0]?.distributedPct || 40}%)</span></td>
+      ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.distributedProfit)}</td>`).join("")}
+    </tr>
   `;
   
   tableEl.innerHTML = html;
@@ -3829,6 +3846,80 @@ function closeNotificationDrawer() {
 
 // Settings & UI Bindings on Page Load
 document.addEventListener("DOMContentLoaded", () => {
+  // Profit Sharing settings binders
+  const inputRetained = document.querySelector("#settingRetainedEarningsPct");
+  const inputDistributed = document.querySelector("#settingDistributedProfitPct");
+  const saveProfitSharingBtn = document.querySelector("#saveProfitSharingBtn");
+
+  // Load Profit Sharing settings
+  const loadProfitSharingSettings = async () => {
+    try {
+      const res = await api("/api/settings/profit-sharing");
+      if (inputRetained) inputRetained.value = res.retained_earnings_percent;
+      if (inputDistributed) inputDistributed.value = res.distributed_profit_percent;
+    } catch (e) {
+      console.error("Failed to load profit sharing settings:", e);
+    }
+  };
+  loadProfitSharingSettings();
+
+  // Link input fields (sum must be 100)
+  if (inputRetained && inputDistributed) {
+    inputRetained.addEventListener("input", () => {
+      let val = parseInt(inputRetained.value || "0", 10);
+      if (val < 0) val = 0;
+      if (val > 100) val = 100;
+      inputRetained.value = val;
+      inputDistributed.value = 100 - val;
+    });
+
+    inputDistributed.addEventListener("input", () => {
+      let val = parseInt(inputDistributed.value || "0", 10);
+      if (val < 0) val = 0;
+      if (val > 100) val = 100;
+      inputDistributed.value = val;
+      inputRetained.value = 100 - val;
+    });
+  }
+
+  // Save Profit Sharing settings
+  if (saveProfitSharingBtn) {
+    saveProfitSharingBtn.addEventListener("click", async () => {
+      const retained = parseInt(inputRetained?.value || "60", 10);
+      const distributed = parseInt(inputDistributed?.value || "40", 10);
+
+      if (isNaN(retained) || isNaN(distributed) || retained < 0 || distributed < 0 || (retained + distributed !== 100)) {
+        alert("Persentase pembagian laba harus valid dan berjumlah 100%!");
+        return;
+      }
+
+      try {
+        saveProfitSharingBtn.disabled = true;
+        saveProfitSharingBtn.textContent = "Menyimpan...";
+        const res = await api("/api/settings/profit-sharing", {
+          method: "POST",
+          body: JSON.stringify({
+            retained_earnings_percent: retained,
+            distributed_profit_percent: distributed
+          })
+        });
+        if (res) {
+          toast("Pengaturan pembagian laba berhasil disimpan!");
+          // Reload dashboard and finance sheets to update calculations
+          await Promise.all([
+            loadDashboard().catch(e => console.error(e)),
+            loadKeuanganReports().catch(e => console.error(e))
+          ]);
+        }
+      } catch (err) {
+        alert("Gagal menyimpan pembagian laba: " + err.message);
+      } finally {
+        saveProfitSharingBtn.disabled = false;
+        saveProfitSharingBtn.textContent = "Simpan Pembagian Laba";
+      }
+    });
+  }
+
   // Settings view binders
   const inputStart = document.querySelector("#settingDrawerStart");
   const inputEnd = document.querySelector("#settingDrawerEnd");

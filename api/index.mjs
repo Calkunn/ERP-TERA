@@ -1216,6 +1216,11 @@ async function reports() {
 }
 
 async function calculateKeuanganReports() {
+  const retainedPctRow = await db.prepare("SELECT value FROM app_settings WHERE key = 'retained_earnings_percent'").get();
+  const distributedPctRow = await db.prepare("SELECT value FROM app_settings WHERE key = 'distributed_profit_percent'").get();
+  const retainedPct = Number(retainedPctRow ? retainedPctRow.value : 60);
+  const distributedPct = Number(distributedPctRow ? distributedPctRow.value : 40);
+
   const revenues = await db.prepare(`
     SELECT mr.id, mr.month, mr.online_revenue, mr.offline_revenue, mr.online_order_count
     FROM monthly_revenues mr
@@ -1339,6 +1344,8 @@ async function calculateKeuanganReports() {
 
     // Produksi & Bahan Baku are excluded from the Income Statement (they are capitalized in inventory and deducted via COGS).
     const netIncome = operatingIncome - otherCost - bayarDavid;
+    const retainedEarnings = Math.round(netIncome * (retainedPct / 100));
+    const distributedProfit = Math.round(netIncome * (distributedPct / 100));
 
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
@@ -1385,6 +1392,10 @@ async function calculateKeuanganReports() {
       packagingCost,
       hangtagCost,
       netIncome,
+      retainedPct,
+      distributedPct,
+      retainedEarnings,
+      distributedProfit,
       beginningCash,
       cashReceived,
       cashReceivedLabel,
@@ -1659,6 +1670,33 @@ async function api(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/me") return json(res, 200, requireUser(req));
+  if (req.method === "GET" && url.pathname === "/api/settings/profit-sharing") {
+    try {
+      const retainedRow = await db.prepare("SELECT value FROM app_settings WHERE key = 'retained_earnings_percent'").get();
+      const distributedRow = await db.prepare("SELECT value FROM app_settings WHERE key = 'distributed_profit_percent'").get();
+      return json(res, 200, {
+        retained_earnings_percent: retainedRow ? Number(retainedRow.value) : 60,
+        distributed_profit_percent: distributedRow ? Number(distributedRow.value) : 40
+      });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+  if (req.method === "POST" && url.pathname === "/api/settings/profit-sharing") {
+    try {
+      const body = await readJson(req);
+      const retained = Number(body.retained_earnings_percent);
+      const distributed = Number(body.distributed_profit_percent);
+      if (isNaN(retained) || isNaN(distributed) || retained < 0 || distributed < 0 || (retained + distributed !== 100)) {
+        return json(res, 400, { error: "Persentase tidak valid. Total harus 100%." });
+      }
+      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('retained_earnings_percent', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(retained));
+      await db.prepare("INSERT INTO app_settings (key, value) VALUES ('distributed_profit_percent', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(distributed));
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
   if (req.method === "GET" && url.pathname === "/api/dashboard") return json(res, 200, await dashboard());
   if (req.method === "GET" && url.pathname === "/api/products") return json(res, 200, await products());
   if (req.method === "GET" && url.pathname === "/api/movements") return json(res, 200, await movements(url.searchParams.get("month") || ""));
