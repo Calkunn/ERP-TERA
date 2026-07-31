@@ -426,11 +426,11 @@ async function loadDashboard() {
   ]);
   window.dashboardData = data;
   
-  const latestReport = reports.at(-1) || { totalRevenue: 0, netIncome: 0, retainedEarnings: 0, distributedProfit: 0, retainedPct: 60, distributedPct: 40 };
+  const latestReport = reports.at(-1) || { totalRevenue: 0, netIncome: 0, retainedEarnings: 0, distributedProfit: 0, cumulativeRetained: 0, cumulativeDistributed: 0, retainedPct: 60, distributedPct: 40 };
   const totalMonthlyRevenue = latestReport.totalRevenue;
   const latestProfit = latestReport.netIncome;
-  const retainedEarnings = latestReport.retainedEarnings || 0;
-  const distributedProfit = latestReport.distributedProfit || 0;
+  const retainedEarnings = latestReport.cumulativeRetained || 0;
+  const distributedProfit = latestReport.cumulativeDistributed || 0;
   const retainedPct = latestReport.retainedPct || 60;
   const distributedPct = latestReport.distributedPct || 40;
 
@@ -440,8 +440,8 @@ async function loadDashboard() {
   document.querySelector("#metrics").innerHTML = [
     ["Revenue Bulan Ini", rupiah.format(totalMonthlyRevenue)],
     ["Laba Bersih", rupiah.format(latestProfit)],
-    [`Laba Ditahan (${retainedPct}%)`, rupiah.format(retainedEarnings)],
-    [`Laba Dibagikan (${distributedPct}%)`, rupiah.format(distributedProfit)],
+    [`Laba Ditahan (Akumulatif)`, rupiah.format(retainedEarnings)],
+    [`Laba Dibagikan (Akumulatif)`, rupiah.format(distributedProfit)],
     ["Total Stock", `${number.format(stockQty)} pcs`],
     ["Nilai Inventory", rupiah.format(stockValue)]
   ].map(([label, value]) => `<article class="metric"><span>${label}</span><strong>${value}</strong></article>`).join("");
@@ -975,16 +975,18 @@ async function loadPembelian() {
   ], suppliers);
 }
 async function loadKeuangan() {
-  const [transactions, profits, expenses] = await Promise.all([
+  const [transactions, profits, expenses, reports] = await Promise.all([
     api("/api/keuangan/transactions"),
     api("/api/profit-summary"),
-    api("/api/monthly-expenses")
+    api("/api/monthly-expenses"),
+    api("/api/keuangan/reports")
   ]);
 
   // Store globally to enable instant client-side filtering
   window.allKeuanganTransactions = transactions;
   window.allKeuanganProfits = profits;
   window.allKeuanganExpenses = expenses;
+  window.allKeuanganReports = reports;
 
   // Initial render
   window.renderFilteredKeuangan();
@@ -994,6 +996,7 @@ window.renderFilteredKeuangan = function() {
   const transactions = window.allKeuanganTransactions || [];
   const profits = window.allKeuanganProfits || [];
   const expenses = window.allKeuanganExpenses || [];
+  const reports = window.allKeuanganReports || [];
 
   const startVal = document.querySelector("#financeFilterStart")?.value; // YYYY-MM
   const endVal = document.querySelector("#financeFilterEnd")?.value;     // YYYY-MM
@@ -1022,7 +1025,16 @@ window.renderFilteredKeuangan = function() {
     };
   }).reverse();
 
-  // 2. Filter expenses list by date range if available
+  // 2. Filter reports (to match income statement data)
+  let filteredReports = [...reports];
+  if (startVal) {
+    filteredReports = filteredReports.filter(r => r.month >= startVal);
+  }
+  if (endVal) {
+    filteredReports = filteredReports.filter(r => r.month <= endVal);
+  }
+
+  // 3. Filter expenses list by date range if available
   let filteredExpenses = [...expenses];
   if (startVal) {
     filteredExpenses = filteredExpenses.filter(r => {
@@ -1037,13 +1049,17 @@ window.renderFilteredKeuangan = function() {
     });
   }
 
-  const totalIncome = finalFilteredProfits.reduce((sum, r) => sum + Number(r.revenue || 0), 0);
-  const totalExpense = finalFilteredProfits.reduce((sum, r) => sum + Number(r.expense || 0), 0);
-  const netProfit = totalIncome - totalExpense;
+  const totalIncome = filteredReports.reduce((sum, r) => sum + Number(r.totalRevenue || 0), 0);
+  const netProfit = filteredReports.reduce((sum, r) => sum + Number(r.netIncome || 0), 0);
+  const totalExpense = totalIncome - netProfit;
+  const totalRetained = filteredReports.reduce((sum, r) => sum + Number(r.retainedEarnings || 0), 0);
+  const totalDistributed = filteredReports.reduce((sum, r) => sum + Number(r.distributedProfit || 0), 0);
 
   document.querySelector("#financeTotalIncome").textContent = rupiah.format(totalIncome);
   document.querySelector("#financeTotalExpense").textContent = rupiah.format(totalExpense);
   document.querySelector("#financeNetProfit").textContent = rupiah.format(netProfit);
+  document.querySelector("#financeTotalRetained").textContent = rupiah.format(totalRetained);
+  document.querySelector("#financeTotalDistributed").textContent = rupiah.format(totalDistributed);
   
   const profitCard = document.querySelector("#financeNetProfitCard");
   if (profitCard) {
@@ -2716,6 +2732,14 @@ function renderIncomeStatement(data) {
     <tr>
       <td>Laba Dibagikan <span class="formula-note">(${data[0]?.distributedPct || 40}%)</span></td>
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.distributedProfit)}</td>`).join("")}
+    </tr>
+    <tr class="total-row" style="background:var(--soft-tertiary);">
+      <td>Laba Ditahan Akumulatif</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.cumulativeRetained)}</strong></td>`).join("")}
+    </tr>
+    <tr class="total-row" style="background:var(--soft-tertiary);">
+      <td>Laba Dibagikan Akumulatif</td>
+      ${data.map(m => `<td style="text-align:right;"><strong>${rupiah.format(m.cumulativeDistributed)}</strong></td>`).join("")}
     </tr>
   `;
   

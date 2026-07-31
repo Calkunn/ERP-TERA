@@ -1293,6 +1293,9 @@ async function calculateKeuanganReports() {
     ...expenses.map(e => e.month)
   ])).sort();
 
+  let cumulativeRetained = 0;
+  let cumulativeDistributed = 0;
+
   for (const m of allMonths) {
     const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
     const grossOffline = Math.round(rev.offline_revenue / 0.64);
@@ -1347,6 +1350,9 @@ async function calculateKeuanganReports() {
     const retainedEarnings = Math.round(netIncome * (retainedPct / 100));
     const distributedProfit = Math.round(netIncome * (distributedPct / 100));
 
+    cumulativeRetained += retainedEarnings;
+    cumulativeDistributed += distributedProfit;
+
     const qtySold = qtyMap.get(m) || 0;
     const avgPrice = qtySold > 0 ? Math.round(grossSales / qtySold) : 0;
 
@@ -1396,6 +1402,8 @@ async function calculateKeuanganReports() {
       distributedPct,
       retainedEarnings,
       distributedProfit,
+      cumulativeRetained,
+      cumulativeDistributed,
       beginningCash,
       cashReceived,
       cashReceivedLabel,
