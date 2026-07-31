@@ -2785,7 +2785,7 @@ function renderCashBudget(data) {
     
     <tr style="font-weight:700; background:var(--soft-tertiary);"><td colspan="${data.length + 1}">Cash Received</td></tr>
     <tr>
-      <td>Sales / Operating income <span class="formula-note">(Sales jika ada Bahan Kain > 0, else Operating Income)</span></td>
+      <td>Pemasukan Penjualan <span class="formula-note">(Total Revenue)</span></td>
       ${data.map(m => `<td style="text-align:right;">${rupiah.format(m.cashReceived)} <span class="formula-note" style="text-align:right; font-weight:600; color:var(--accent);">${m.cashReceivedLabel}</span></td>`).join("")}
     </tr>
     <tr class="total-row">
