@@ -2806,10 +2806,6 @@ function renderCashBudget(data) {
       <td>Biaya Operasional & Lainnya <span class="formula-note">(Marketing, Sewa, dll)</span></td>
       ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.otherExpenses)}</td>`).join("")}
     </tr>
-    <tr>
-      <td>Bagi Hasil Owner <span class="formula-note">(Laba Dibagikan ${data[0]?.distributedPct || 40}%)</span></td>
-      ${data.map(m => `<td style="text-align:right; color:#ef4444;">-${rupiah.format(m.distributedProfit)}</td>`).join("")}
-    </tr>
     <tr class="total-row">
       <td>Total cash disbursement</td>
       ${data.map(m => `<td style="text-align:right;"><strong>-${rupiah.format(m.totalCashDisbursement)}</strong></td>`).join("")}
