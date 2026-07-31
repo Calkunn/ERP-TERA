@@ -355,6 +355,7 @@ async function initDb() {
   await migrateDuplicateProducts();
   await migrateOfflineRevenuesToNet();
   await migrateRndExpenses();
+  await migrateRevenuesToGross();
 }
 
 let vapidKeys = null;
@@ -501,6 +502,56 @@ async function migrateOfflineRevenuesToNet() {
   } catch (err) {
     await db.exec("ROLLBACK");
     console.error("Failed to run offline revenue commission migration:", err);
+  }
+}
+
+async function migrateRevenuesToGross() {
+  console.log("Starting revenue gross calculation migration...");
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS migration_versions (
+      version TEXT PRIMARY KEY,
+      migrated_at TEXT NOT NULL
+    )
+  `);
+  
+  const migrated = await db.prepare("SELECT 1 FROM migration_versions WHERE version = 'revenue_gross_calculation'").get();
+  if (migrated) {
+    console.log("Revenue gross calculation migration already completed. Skipping.");
+    return;
+  }
+
+  await db.exec("BEGIN");
+  try {
+    console.log("Updating existing monthly revenues to gross values based on item quantities and sell prices...");
+    
+    // For both SQLite and PostgreSQL: update offline_revenue
+    await db.prepare(`
+      UPDATE monthly_revenues
+      SET offline_revenue = COALESCE((
+        SELECT SUM(mri.offline_qty * v.sell_price)
+        FROM monthly_revenue_items mri
+        JOIN variants v ON v.id = mri.variant_id
+        WHERE mri.monthly_revenue_id = monthly_revenues.id
+      ), offline_revenue)
+    `).run();
+
+    // Also update online_revenue just in case
+    await db.prepare(`
+      UPDATE monthly_revenues
+      SET online_revenue = COALESCE((
+        SELECT SUM(mri.online_qty * v.sell_price)
+        FROM monthly_revenue_items mri
+        JOIN variants v ON v.id = mri.variant_id
+        WHERE mri.monthly_revenue_id = monthly_revenues.id
+      ), online_revenue)
+    `).run();
+
+    await db.prepare("INSERT INTO migration_versions (version, migrated_at) VALUES ('revenue_gross_calculation', CURRENT_TIMESTAMP)").run();
+    await db.exec("COMMIT");
+    console.log("Revenue gross calculation migration completed successfully!");
+  } catch (err) {
+    await db.exec("ROLLBACK");
+    console.error("Failed to run revenue gross calculation migration:", err);
   }
 }
 
@@ -1298,7 +1349,7 @@ async function calculateKeuanganReports() {
 
   for (const m of allMonths) {
     const rev = revenues.find(r => r.month === m) || { online_revenue: 0, offline_revenue: 0, online_order_count: 0 };
-    const grossOffline = Math.round(rev.offline_revenue / 0.64);
+    const grossOffline = rev.offline_revenue;
     const grossSales = rev.online_revenue + grossOffline;
     const monthExps = expensesByMonth[m] || [];
     const totalExpenses = monthExps.reduce((sum, e) => sum + e.amount, 0);
@@ -1307,7 +1358,7 @@ async function calculateKeuanganReports() {
       continue;
     }
 
-    const komisi = grossOffline - rev.offline_revenue;
+    const komisi = Math.round(grossOffline * 0.36);
     const totalRevenue = grossSales - komisi;
     const cogs = cogsMap.get(m) || 0;
     const operatingIncome = totalRevenue - cogs;
@@ -2559,7 +2610,7 @@ async function api(req, res) {
       `).run(
         body.month,
         Number(body.onlineRevenue || 0),
-        Math.round(Number(body.offlineRevenue || 0) * 0.64),
+        Number(body.offlineRevenue || 0),
         Number(body.onlineOrderCount || 0),
         body.onlineNotes || "",
         body.offlineNotes || ""
