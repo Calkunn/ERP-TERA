@@ -1084,7 +1084,7 @@ async function monthlyExpenses() {
 
 async function profitSummary() {
   const revenues = await db.prepare(`
-    SELECT month, (online_revenue + offline_revenue) AS revenue
+    SELECT month, (online_revenue + ROUND(offline_revenue * 0.64)) AS revenue
     FROM monthly_revenues
     ORDER BY month ASC
   `).all();
