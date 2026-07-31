@@ -37,7 +37,7 @@ function translateSql(sql) {
     `;
   }
 
-  if (/^\s*insert\s+/i.test(translated) && !/returning/i.test(translated) && !/into\s+inventory_balances/i.test(translated) && !/into\s+auxiliary_balances/i.test(translated)) {
+  if (/^\s*insert\s+/i.test(translated) && !/returning/i.test(translated) && !/into\s+(inventory_balances|auxiliary_balances|app_settings|migration_versions)/i.test(translated)) {
     translated += " RETURNING id";
   }
   
