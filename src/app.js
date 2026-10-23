@@ -11,6 +11,7 @@ const titles = {
   pengeluaran: ["Pengeluaran", "Kelola biaya operasional, gaji, jahit, sablon, dan lainnya."],
   keuangan: ["Keuangan", "Buku kas, grafik arus kas bulanan, dan ringkasan keuangan TERA."],
   laporan: ["Laporan", "Income Statement, Cash Budget, dan Ringkasan Laba Rugi SKU/Channel model TERA."],
+  "supplier-intelligence": ["Supplier Intelligence", "Monitoring deadline, komunikasi supplier, dan risiko produksi."],
   "ai-consultant": ["Konsultan AI", "Virtual COO terintegrasi untuk pendampingan operasional, keuangan, & branding TERA."],
   pengaturan: ["Pengaturan", "Informasi sistem dan konfigurasi server ERP."]
 };
@@ -969,9 +970,12 @@ async function loadPembelian() {
   }
 
   table("#supplierTable", [
-    { label: "", render: (r) => `<button class="mini danger delete-supplier-btn" data-id="${r.id}" data-name="${r.name}" title="Hapus Supplier" type="button">🗑</button>` },
+    { label: "", render: (r) => `<button class="mini edit-supplier-btn" data-id="${r.id}" title="Edit Supplier" type="button">✎</button> <button class="mini danger delete-supplier-btn" data-id="${r.id}" data-name="${r.name}" title="Hapus Supplier" type="button">🗑</button>` },
     { label: "Nama Supplier", key: "name" },
-    { label: "Kontak / Telepon", key: "contact" }
+    { label: "Kontak / Telepon", key: "contact" },
+    { label: "CP", render: (r) => r.contact_person || "-" },
+    { label: "WhatsApp", render: (r) => r.phone_number ? `${r.phone_number}` : "-" },
+    { label: "Status WA", render: (r) => r.whatsapp_status || "unverified" }
   ], suppliers);
 }
 async function loadKeuangan() {
@@ -1146,6 +1150,240 @@ async function loadOptions() {
   }
 }
 
+function riskBadge(risk) {
+  if (!risk) return `<span class="badge" style="opacity:.6;">BELUM DINILAI</span>`;
+  const level = risk.risk_level;
+  const color = level === "HIGH" ? "#e11d48" : level === "MEDIUM" ? "#d97706" : "#16a34a";
+  return `<span class="badge" style="background:${color};color:#fff;">${level} (${risk.risk_score})</span>`;
+}
+
+async function loadSupplierIntelligence() {
+  const rows = await api("/api/supplier-intelligence/overview");
+  const suppliers = await api("/api/suppliers");
+
+  table("#supplierIntelligenceTable", [
+    { label: "Batch", key: "batch_no" },
+    {
+      label: "Supplier",
+      render: (r) => {
+        if (!r.supplier_id) {
+          const opts = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+          return `<select class="assign-supplier-select" data-batch="${r.id}" style="max-width:160px;"><option value="">— Pilih supplier —</option>${opts}</select>`;
+        }
+        return r.supplier_name || "-";
+      }
+    },
+    { label: "Deadline", key: "due_date" },
+    {
+      label: "Progres",
+      render: (r) => {
+        const avg = Math.round(((r.cutting_progress || 0) + (r.sewing_progress || 0) + (r.finishing_progress || 0)) / 3);
+        return `${avg}%`;
+      }
+    },
+    { label: "Risiko", render: (r) => riskBadge(r.risk) },
+    {
+      label: "Inquiry Terakhir",
+      render: (r) => r.last_inquiry_at ? String(r.last_inquiry_at).slice(0, 16) : "-"
+    },
+    {
+      label: "Aksi",
+      render: (r) => `
+        <button class="mini analyze-risk-btn" data-batch="${r.id}" type="button">⚡ Analyze Risk</button>
+        <button class="mini history-msg-btn" data-batch="${r.id}" data-batch-no="${r.batch_no}" type="button">💬 Riwayat</button>
+      `
+    }
+  ], rows, "Tidak ada batch aktif");
+
+  // Assign supplier handler
+  document.querySelectorAll(".assign-supplier-select").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const batchId = sel.dataset.batch;
+      if (!sel.value) return;
+      try {
+        await api(`/api/production/batches/${batchId}/supplier`, {
+          method: "PUT",
+          body: JSON.stringify({ supplier_id: Number(sel.value) })
+        });
+        toast("Supplier ditugaskan ke batch");
+        loadSupplierIntelligence().catch(e => console.error(e));
+      } catch (e) {
+        toast(e.message);
+        loadSupplierIntelligence().catch(err => console.error(err));
+      }
+    });
+  });
+
+  // Analyze Risk handler (satu-satunya titik panggil LLM dari dashboard)
+  document.querySelectorAll(".analyze-risk-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const batchId = btn.dataset.batch;
+      btn.disabled = true;
+      btn.textContent = "⏳ Menganalisis...";
+      try {
+        const result = await api(`/api/supplier-intelligence/${batchId}/analyze`, { method: "POST" });
+        const reasons = JSON.parse(result.risk.risk_reasons || "[]");
+        const rawMsg = result.raw_message ? `<div style="margin:12px 0;padding:12px;background:rgba(100,100,100,.1);border-left:3px solid #d97706;border-radius:4px;">
+          <strong>💬 Pesan Supplier:</strong>
+          <p style="margin:6px 0;font-style:italic;">"${result.raw_message}"</p>
+        </div>` : "";
+        const ekstraksi = result.extraction;
+        const ekstraksiHtml = Object.entries(ekstraksi).map(([k, v]) => {
+          const text = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "");
+          return `<div style="padding:7px 10px;background:#f4f4f5;border-radius:6px;font-size:14px;">
+            <div style="color:#6b7280;font-weight:700;">${k}</div>
+            <div style="color:#111827;font-size:15px;">${text}</div>
+          </div>`;
+        }).join("");
+
+        const extractHtml = Object.keys(ekstraksi).length
+          ? `<div style="margin-top:10px;padding:12px;background:#f4f4f5;border-radius:8px;font-size:14px;">
+              <div style="font-weight:700;color:#6b7280;margin-bottom:8px;">Hasil Ekstraksi AI</div>
+              ${ekstraksiHtml}
+              ${ekstraksi.needs_human_review ? `<p style="margin-top:8px;color:#d97706;font-size:14px;">⚠ Hasil ditandai untuk review manual.</p>` : ""}
+            </div>`
+          : `<p style="margin-top:10px;color:#9ca3af;font-size:14px;">Belum ada balasan supplier. Kirim inquiry atau simulasikan balasan melalui tab <strong>💬 Riwayat</strong>.</p>`;
+
+        showSupplierModal(
+          `Hasil Analisis Risiko — ${result.batch_no}`,
+          `<p>Risiko: ${riskBadge(result.risk)}</p>
+           ${rawMsg}
+           <ul>${reasons.map(r => `<li>${r}</li>`).join("")}</ul>
+           ${extractHtml}`
+        );
+        loadSupplierIntelligence().catch(e => console.error(e));
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "⚡ Analyze Risk";
+      }
+    });
+  });
+
+  // Riwayat analisis per batch
+  document.querySelectorAll(".history-ana-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const batchId = btn.dataset.batch;
+      const batchNo = btn.dataset.batchNo;
+      try {
+        const analyses = await api(`/api/supplier-intelligence/${batchId}/analyses`);
+        if (!analyses.length) {
+          showSupplierModal(`Riwayat Analisis — ${batchNo}`, "<p>Belum ada hasil analisis untuk batch ini.</p>");
+          return;
+        }
+
+        const analysisHtml = analyses.map((a, idx) => {
+          const date = a.created_at ? String(a.created_at).slice(0, 16) : "-";
+          const riskColor = a.risk_level === "HIGH" ? "#e11d48" : a.risk_level === "MEDIUM" ? "#d97706" : "#16a34a";
+          const reasons = a.risk_reasons?.length ? `<ul>${a.risk_reasons.map(r => `<li>${r}</li>`).join("")}</ul>` : "";
+          const rawMsg = a.raw_message ? `<div style="margin:8px 0;padding:8px;background:rgba(100,100,100,.08);border-radius:6px;font-size:13px;"><strong>💬 Pesan:</strong> ${a.raw_message}</div>` : "";
+          const summary = a.chat_summary ? `<p style="font-size:13px;color:#4b5563;">${a.chat_summary}</p>` : "";
+
+          return `<div style="border:1px solid #d1d5db;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <strong>Analisis #${analyses.length - idx}</strong>
+              <span style="font-size:12px;color:#6b7280;">${date}</span>
+            </div>
+            <div style="display:flex;gap:12px;margin-bottom:8px;align-items:center;">
+              <span class="badge" style="background:${riskColor};color:#fff;">${a.risk_level} (${a.risk_score})</span>
+              <span style="font-size:12px;color:#6b7280;">${a.verification_status === "VERIFIED" ? "✅ Terverifikasi" : a.verification_status === "REJECTED" ? "❌ Ditolak" : "⏳ Pending"}</span>
+            </div>
+            ${rawMsg}
+            ${summary}
+            ${reasons}
+          </div>`;
+        }).join("");
+
+        showSupplierModal(
+          `Riwayat Analisis — ${batchNo}`,
+          `<div style="max-height:400px;overflow-y:auto;padding-right:6px;">
+            ${analysisHtml}
+          </div>`
+        );
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+  });
+
+  // Riwayat percakapan handler
+  document.querySelectorAll(".history-msg-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const batchId = btn.dataset.batch;
+      const batchNo = btn.dataset.batchNo;
+      try {
+        const messages = await api(`/api/supplier-intelligence/${batchId}/messages`);
+        const bubbles = messages.length
+          ? messages.map(m => `
+              <div style="margin:8px 0;padding:8px 12px;border-radius:8px;max-width:85%;${m.direction === "OUTBOUND" ? "background:rgba(79,70,229,.12);margin-left:auto;" : "background:rgba(22,163,74,.12);"}">
+                <small>${m.direction} · ${String(m.created_at).slice(0, 16)}</small>
+                <div>${m.raw_content}</div>
+              </div>`).join("")
+          : "<p>Belum ada percakapan.</p>";
+
+        showSupplierModal(
+          `Riwayat Komunikasi — ${batchNo}`,
+          `<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">${bubbles}</div>
+           <form id="simulateReplyForm" style="margin-top:14px;display:flex;gap:8px;">
+             <input type="text" name="reply" placeholder="Simulasikan balasan supplier..." style="flex:1;" required />
+             <button class="mini" type="submit">Kirim (Simulasi)</button>
+           </form>`
+        );
+
+        document.querySelector("#simulateReplyForm")?.addEventListener("submit", async (ev) => {
+          ev.preventDefault();
+          const input = ev.target.elements.reply;
+          try {
+            await api(`/api/supplier-intelligence/${batchId}/messages`, {
+              method: "POST",
+              body: JSON.stringify({ direction: "INBOUND", raw_content: input.value })
+            });
+            toast("Balasan tersimulasi tersimpan. Klik Analyze Risk untuk memproses.");
+            input.value = "";
+            btn.click(); // refresh modal
+          } catch (e) {
+            toast(e.message);
+          }
+        });
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+  });
+}
+
+function showSupplierModal(title, content) {
+  let overlay = document.querySelector("#supplierModalOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "supplierModalOverlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;";
+    overlay.innerHTML = `<div style="background:var(--panel,#fff);border-radius:12px;padding:20px;max-width:560px;width:92%;max-height:80vh;overflow-y:auto;position:relative;">
+      <button id="supplierModalClose" style="position:absolute;top:8px;right:12px;border:0;background:none;font-size:20px;cursor:pointer;">×</button>
+      <h3 id="supplierModalTitle" style="margin-bottom:12px;"></h3>
+      <div id="supplierModalBody"></div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.style.display = "none"; });
+    overlay.querySelector("#supplierModalClose").addEventListener("click", () => { overlay.style.display = "none"; });
+  }
+  overlay.querySelector("#supplierModalTitle").textContent = title;
+  overlay.querySelector("#supplierModalBody").innerHTML = content;
+  overlay.style.display = "flex";
+}
+
+document.querySelector("#runSupplierSchedulerBtn")?.addEventListener("click", async () => {
+  try {
+    const { results } = await api("/api/supplier-intelligence/scheduler-scan", { method: "POST" });
+    const sent = results.filter(r => r.status === "SENT_SIMULATED").length;
+    toast(`Scan selesai: ${sent} inquiry terkirim, ${results.length - sent} dilewati (idempoten).`);
+    loadSupplierIntelligence().catch(e => console.error(e));
+  } catch (e) {
+    toast(e.message);
+  }
+});
+
 async function refreshAll() {
   await Promise.all([
     loadDashboard(),
@@ -1158,7 +1396,8 @@ async function refreshAll() {
     loadProduksi(),
     loadPembelian(),
     loadKeuangan(),
-    loadKeuanganReports()
+    loadKeuanganReports(),
+    loadSupplierIntelligence()
   ]);
 }
 
@@ -1214,6 +1453,9 @@ document.querySelectorAll(".nav").forEach((button) => {
       }
       else if (viewId === "ai-consultant") {
         loadAiConsultant().catch(e => console.error(e));
+      }
+      else if (viewId === "supplier-intelligence") {
+        loadSupplierIntelligence().catch(e => console.error(e));
       }
     }, 100);
   });
@@ -1689,13 +1931,30 @@ document.querySelector("#newPoForm").addEventListener("submit", async (event) =>
   }
 });
 
-// Add Supplier
+// Add / Update Supplier
 document.querySelector("#supplierForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const data = formData(event.target);
   try {
-    await api("/api/suppliers", { method: "POST", body: JSON.stringify(formData(event.target)) });
+    if (data.id) {
+      await api(`/api/suppliers/${data.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: data.name,
+          contact: data.contact,
+          phone_number: data.phone_number,
+          whatsapp_status: data.whatsapp_status,
+          contact_person: data.contact_person
+        })
+      });
+      toast("Supplier diperbarui.");
+    } else {
+      await api("/api/suppliers", { method: "POST", body: JSON.stringify({ name: data.name, contact: data.contact }) });
+      toast("Supplier baru ditambahkan.");
+    }
     event.target.reset();
-    toast("Supplier baru ditambahkan.");
+    event.target.elements.id.value = "";
+    document.querySelector("#supplierFormSubmitBtn").textContent = "＋ Tambah Supplier";
     await refreshAll();
   } catch (error) {
     toast(error.message);
@@ -2102,10 +2361,10 @@ document.querySelector("#updateProgressForm").addEventListener("submit", async (
 document.querySelector("#supplierTable").addEventListener("click", async (event) => {
   const btn = event.target.closest(".delete-supplier-btn");
   if (!btn) return;
-  
+
   const id = btn.dataset.id;
   const name = btn.dataset.name;
-  
+
   if (confirm(`Apakah Anda yakin ingin menghapus Supplier ${name}? Tindakan ini permanen.`)) {
     try {
       await api(`/api/suppliers/${id}`, { method: "DELETE" });
@@ -2115,6 +2374,28 @@ document.querySelector("#supplierTable").addEventListener("click", async (event)
       console.error(e);
       toast(`Gagal menghapus supplier: ${e.message}`);
     }
+  }
+});
+
+// Edit Supplier Event Listener
+document.querySelector("#supplierTable").addEventListener("click", async (event) => {
+  const btn = event.target.closest(".edit-supplier-btn");
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  try {
+    const supplier = await api(`/api/suppliers/${id}`);
+    document.querySelector("#supplierForm [name='id']").value = supplier.id;
+    document.querySelector("#supplierForm [name='name']").value = supplier.name;
+    document.querySelector("#supplierForm [name='contact']").value = supplier.contact;
+    document.querySelector("#supplierForm [name='contact_person']").value = supplier.contact_person || "";
+    document.querySelector("#supplierForm [name='phone_number']").value = supplier.phone_number || "";
+    document.querySelector("#supplierForm [name='whatsapp_status']").value = supplier.whatsapp_status || "unverified";
+    document.querySelector("#supplierFormSubmitBtn").textContent = "✎ Simpan";
+    document.querySelector("#supplierForm").scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => document.querySelector("#supplierForm [name='name']")?.focus(), 100);
+  } catch (e) {
+    toast(e.message);
   }
 });
 

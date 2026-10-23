@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync } from "node:fs";
 import { extname, join } from "node:path";
 import { getDbClient } from "./db.mjs";
+import { runMigrations } from "./migrations.mjs";
+import { computeRiskAssessment } from "./risk-engine.mjs";
+import { EXTRACTION_SYSTEM_PROMPT, sanitizeExtractionResult, extractReply, mergeExtraction } from "./extraction.mjs";
+import { runProgressInquiryScheduler } from "./scheduler.mjs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import webpush from "web-push";
 
@@ -304,6 +308,9 @@ async function initDb() {
       FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE
     );
   `);
+
+  // Run Supplier Intelligence migrations only after base tables exist.
+  await runMigrations(db);
 
   if (dropPoItems) {
     console.log("Migration: Re-seeding purchase orders with raw materials...");
@@ -1507,6 +1514,80 @@ async function callGemini(systemInstruction, userMessage, history = []) {
     return `Ini adalah respons simulasi dari Virtual COO untuk pesan: "${userMessage}".`;
   }
 
+  // OpenRouter (sk-or-v1-...)
+  if (apiKey.startsWith("sk-or-v1-")) {
+    const messages = [];
+    if (systemInstruction) {
+      messages.push({ role: "system", content: systemInstruction });
+    }
+    for (const h of history) {
+      messages.push({ role: h.role === "user" ? "user" : "assistant", content: h.text });
+    }
+    messages.push({ role: "user", content: userMessage });
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000"
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3.1-8b-instruct",
+        messages,
+        temperature: 0.7,
+        max_tokens: 1024
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter Error: ${response.status} - ${errText}`);
+    }
+
+    const resJson = await response.json();
+    const text = resJson.choices?.[0]?.message?.content;
+    if (!text) {
+      throw new Error("OpenRouter returned empty response.");
+    }
+    return text;
+  }
+
+  // Cloudflare AI Workers (cfut_...)
+  if (apiKey.startsWith("cfut_")) {
+    const messages = [];
+    if (systemInstruction) {
+      messages.push({ role: "system", content: systemInstruction });
+    }
+    for (const h of history) {
+      messages.push({ role: h.role === "user" ? "user" : "assistant", content: h.text });
+    }
+    messages.push({ role: "user", content: userMessage });
+
+    const accountId = process.env.CF_ACCOUNT_ID || "default";
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ messages })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Cloudflare AI Error: ${response.status} - ${errText}`);
+    }
+
+    const resJson = await response.json();
+    const text = resJson.result?.response || resJson.result?.content;
+    if (!text) {
+      throw new Error("Cloudflare AI returned empty response.");
+    }
+    return text;
+  }
+
+  // Google Gemini (default)
   const contents = [];
   for (const h of history) {
     contents.push({
@@ -1842,7 +1923,7 @@ async function api(req, res) {
     }
   }
 
-  if (req.method === "PUT" && url.pathname.startsWith("/api/production/batches/") && !url.pathname.endsWith("/details")) {
+  if (req.method === "PUT" && url.pathname.startsWith("/api/production/batches/") && !url.pathname.endsWith("/details") && url.pathname.split("/").pop() !== "supplier") {
     const id = Number(url.pathname.split("/").at(-1));
     const body = await readJson(req);
     const cutting = Number(body.cuttingProgress ?? 0);
@@ -2260,6 +2341,28 @@ async function api(req, res) {
     return json(res, 200, rows);
   }
 
+  if (req.method === "PUT" && url.pathname.match(/^\/api\/suppliers\/(\d+)$/)) {
+    const id = Number(RegExp.$1);
+    const body = await readJson(req);
+    const name = String(body.name || "").trim();
+    const contact = String(body.contact || "").trim();
+    const phoneNumber = String(body.phone_number || "").trim();
+    const whatsappStatus = String(body.whatsapp_status || "unverified").trim();
+    const contactPerson = String(body.contact_person || "").trim();
+    if (!name) return json(res, 400, { error: "Nama supplier wajib diisi" });
+    if (phoneNumber && !/^[0-9+\s-]{8,20}$/.test(phoneNumber)) return json(res, 400, { error: "Format nomor WhatsApp tidak valid" });
+    if (!["unverified", "verified", "opted_out"].includes(whatsappStatus)) return json(res, 400, { error: "Status WhatsApp tidak valid" });
+    try {
+      const existing = await db.prepare("SELECT id FROM suppliers WHERE id = ?").get(id);
+      if (!existing) return json(res, 404, { error: "Supplier tidak ditemukan" });
+      await db.prepare("UPDATE suppliers SET name = ?, contact = ?, phone_number = ?, whatsapp_status = ?, contact_person = ? WHERE id = ?")
+        .run(name, contact, phoneNumber, whatsappStatus, contactPerson, id);
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
   if (req.method === "POST" && url.pathname === "/api/suppliers") {
     const body = await readJson(req);
     const name = String(body.name || "").trim();
@@ -2368,6 +2471,407 @@ async function api(req, res) {
       return json(res, 500, { error: error.message });
     }
   }
+
+  // ============ SUPPLIER INTELLIGENCE ROUTES ============
+
+  if (req.method === "PUT" && url.pathname.match(/^\/api\/production\/batches\/(\d+)\/supplier$/)) {
+    const batchId = Number(RegExp.$1);
+    const body = await readJson(req);
+    const supplierId = body.supplier_id ? Number(body.supplier_id) : null;
+
+    await db.exec("BEGIN");
+    try {
+      const batch = await db.prepare("SELECT id, batch_no, status FROM production_batches WHERE id = ?").get(batchId);
+      if (!batch) {
+        await db.exec("ROLLBACK");
+        return json(res, 404, { error: "Batch tidak ditemukan" });
+      }
+
+      if (supplierId) {
+        const supplier = await db.prepare("SELECT id FROM suppliers WHERE id = ?").get(supplierId);
+        if (!supplier) {
+          await db.exec("ROLLBACK");
+          return json(res, 404, { error: "Supplier tidak ditemukan" });
+        }
+
+        // One supplier may manage multiple production batches.
+      }
+
+      await db.prepare("UPDATE production_batches SET supplier_id = ? WHERE id = ?").run(supplierId, batchId);
+      await db.exec("COMMIT");
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/supplier-intelligence/overview") {
+    try {
+      const batches = await db.prepare(`
+        SELECT
+          pb.id, pb.batch_no, pb.due_date, pb.status,
+          pb.cutting_progress, pb.sewing_progress, pb.finishing_progress,
+          pb.supplier_id,
+          s.name as supplier_name, s.phone_number, s.whatsapp_status, s.contact_person
+        FROM production_batches pb
+        LEFT JOIN suppliers s ON s.id = pb.supplier_id
+        WHERE pb.status = 'Sedang Diproses'
+        ORDER BY pb.due_date ASC
+      `).all();
+
+      const enriched = await Promise.all(batches.map(async (b) => {
+        const latestRisk = await db.prepare(`
+          SELECT risk_score, risk_level, risk_reasons, created_at
+          FROM risk_assessments
+          WHERE batch_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(b.id);
+
+        const lastInquiry = await db.prepare(`
+          SELECT created_at FROM communication_logs
+          WHERE batch_id = ? AND direction = 'OUTBOUND'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(b.id);
+
+        const messageCount = await db.prepare(`
+          SELECT COUNT(*) as cnt FROM communication_logs WHERE batch_id = ?
+        `).get(b.id);
+
+        return {
+          ...b,
+          risk: latestRisk,
+          last_inquiry_at: lastInquiry?.created_at || null,
+          message_count: messageCount?.cnt || 0
+        };
+      }));
+
+      return json(res, 200, enriched);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname.match(/^\/api\/supplier-intelligence\/(\d+)\/messages$/)) {
+    const batchId = Number(RegExp.$1);
+    const body = await readJson(req);
+    const direction = String(body.direction || "INBOUND").toUpperCase();
+    const rawContent = String(body.raw_content || "").trim();
+
+    if (!["INBOUND", "OUTBOUND"].includes(direction)) {
+      return json(res, 400, { error: "Direction harus INBOUND atau OUTBOUND" });
+    }
+    if (!rawContent) {
+      return json(res, 400, { error: "Konten pesan wajib diisi" });
+    }
+
+    try {
+      const batch = await db.prepare("SELECT id, supplier_id FROM production_batches WHERE id = ?").get(batchId);
+      if (!batch || !batch.supplier_id) {
+        return json(res, 404, { error: "Batch atau supplier tidak ditemukan" });
+      }
+
+      const logId = randomUUID();
+      const providerId = body.provider_message_id || `simulated_${Date.now()}`;
+
+      await db.prepare(`
+        INSERT INTO communication_logs (id, batch_id, supplier_id, direction, raw_content, provider_message_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(logId, batchId, batch.supplier_id, direction, rawContent, providerId);
+
+      return json(res, 201, { ok: true, id: logId });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname.match(/^\/api\/supplier-intelligence\/(\d+)\/messages$/)) {
+    const batchId = Number(RegExp.$1);
+    try {
+      const messages = await db.prepare(`
+        SELECT id, direction, raw_content, provider_message_id, created_at
+        FROM communication_logs
+        WHERE batch_id = ?
+        ORDER BY created_at ASC
+      `).all(batchId);
+
+      return json(res, 200, messages);
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname.match(/^\/api\/supplier-intelligence\/(\d+)\/analyses$/)) {
+    const batchId = Number(RegExp.$1);
+    try {
+      const analyses = await db.prepare(`
+        SELECT
+          ra.id, ra.batch_id, ra.source_message_id, ra.risk_score, ra.risk_level,
+          ra.risk_reasons, ra.ai_analysis_summary, ra.chat_summary, ra.created_at,
+          cl.raw_content AS raw_message,
+          pr.verification_status,
+          pr.reported_progress_percent, pr.reported_eta, pr.blockers, pr.confidence_score
+        FROM risk_assessments ra
+        LEFT JOIN communication_logs cl ON cl.id = ra.source_message_id
+        LEFT JOIN progress_reports pr ON pr.id = (
+          SELECT p2.id FROM progress_reports p2
+          WHERE p2.batch_id = ra.batch_id
+          ORDER BY p2.created_at DESC LIMIT 1
+        )
+        WHERE ra.batch_id = ?
+        ORDER BY ra.created_at DESC
+      `).all(batchId);
+
+      return json(res, 200, analyses.map(row => ({
+        ...row,
+        extraction: row.ai_analysis_summary ? JSON.parse(row.ai_analysis_summary) : null,
+        risk_reasons: row.risk_reasons ? JSON.parse(row.risk_reasons) : [],
+        blockers: row.blockers ? JSON.parse(row.blockers) : []
+      })));
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname.match(/^\/api\/supplier-intelligence\/(\d+)\/analyze$/)) {
+    const batchId = Number(RegExp.$1);
+
+    try {
+      const batch = await db.prepare(`
+        SELECT pb.*, s.name as supplier_name
+        FROM production_batches pb
+        LEFT JOIN suppliers s ON s.id = pb.supplier_id
+        WHERE pb.id = ?
+      `).get(batchId);
+
+      if (!batch) return json(res, 404, { error: "Batch tidak ditemukan" });
+
+      const lastInbound = await db.prepare(`
+        SELECT id, raw_content, extraction_json, created_at
+        FROM communication_logs
+        WHERE batch_id = ? AND direction = 'INBOUND'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(batchId);
+
+      // Each inbound message has one immutable analysis. Re-clicking Analyze Risk
+      // returns that saved evidence instead of asking the LLM again.
+      if (lastInbound) {
+        const savedAnalysis = await db.prepare(`
+          SELECT id, risk_score, risk_level, risk_reasons, ai_analysis_summary, chat_summary
+          FROM risk_assessments
+          WHERE source_message_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(lastInbound.id);
+
+        if (savedAnalysis) {
+          let savedExtraction = null;
+          try { savedExtraction = JSON.parse(savedAnalysis.ai_analysis_summary || "null"); } catch (_) {}
+          return json(res, 200, {
+            batch_no: batch.batch_no,
+            supplier_name: batch.supplier_name,
+            raw_message: lastInbound.raw_content,
+            chat_summary: savedAnalysis.chat_summary,
+            extraction: savedExtraction,
+            risk: {
+              risk_score: savedAnalysis.risk_score,
+              risk_level: savedAnalysis.risk_level,
+              risk_reasons: savedAnalysis.risk_reasons
+            },
+            report_id: null,
+            risk_id: savedAnalysis.id,
+            cached: true
+          });
+        }
+      }
+
+      let extractedData = null;
+      let effectiveExtraction = null;
+      let reportId = null;
+
+      if (lastInbound) {
+        if (lastInbound.extraction_json) {
+          try {
+            extractedData = JSON.parse(lastInbound.extraction_json);
+          } catch (_) {
+            extractedData = null;
+          }
+        }
+
+        if (!extractedData) {
+          if (process.env.GEMINI_API_KEY === "mock_api_key") {
+            extractedData = extractReply(lastInbound.raw_content);
+          } else {
+            if (!process.env.GEMINI_API_KEY) {
+              return json(res, 400, {
+                error: "GEMINI_API_KEY_MISSING",
+                message: "API Key Gemini belum terkonfigurasi."
+              });
+            }
+            const userPrompt = `Pesan dari supplier:\n\n"${lastInbound.raw_content}"`;
+            const rawResult = await callGemini(EXTRACTION_SYSTEM_PROMPT, userPrompt);
+            extractedData = sanitizeExtractionResult(rawResult);
+          }
+
+          try {
+            await db.prepare("UPDATE communication_logs SET extraction_json = ? WHERE id = ?")
+              .run(JSON.stringify(extractedData), lastInbound.id);
+          } catch (_) {}
+        }
+
+        const priorReport = await db.prepare(`
+          SELECT reported_progress_percent, reported_stage, reported_eta, blockers, deadline_confirmation, confidence_score, needs_human_review
+          FROM progress_reports
+          WHERE batch_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(batchId);
+        const priorAnalysis = await db.prepare(`
+          SELECT ai_analysis_summary
+          FROM risk_assessments
+          WHERE batch_id = ?
+          ORDER BY created_at DESC, rowid DESC
+          LIMIT 1
+        `).get(batchId);
+
+        let priorExtraction = null;
+        try {
+          priorExtraction = priorAnalysis?.ai_analysis_summary
+            ? JSON.parse(priorAnalysis.ai_analysis_summary)
+            : null;
+        } catch (_) {}
+
+        // Fallback for pre-history records created before full extraction fields existed.
+        if (!priorExtraction && priorReport) {
+          let priorBlockers = [];
+          try { priorBlockers = JSON.parse(priorReport.blockers || "[]"); } catch (_) {}
+          priorExtraction = {
+            reported_progress_percent: priorReport.reported_progress_percent,
+            reported_stage: priorReport.reported_stage,
+            reported_eta: priorReport.reported_eta,
+            blockers: priorBlockers,
+            deadline_confirmation: priorReport.deadline_confirmation === null || priorReport.deadline_confirmation === undefined
+              ? null : Boolean(priorReport.deadline_confirmation),
+            confidence_score: priorReport.confidence_score,
+            needs_human_review: Boolean(priorReport.needs_human_review)
+          };
+        }
+        effectiveExtraction = mergeExtraction(priorExtraction, extractedData);
+
+        reportId = randomUUID();
+        await db.prepare(`
+          INSERT INTO progress_reports (
+            id, batch_id, supplier_id, reported_progress_percent, reported_stage,
+            reported_eta, blockers, deadline_confirmation, confidence_score,
+            needs_human_review, verification_status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        `).run(
+          reportId,
+          batchId,
+          batch.supplier_id,
+          effectiveExtraction.reported_progress_percent,
+          effectiveExtraction.reported_stage,
+          effectiveExtraction.reported_eta,
+          JSON.stringify(effectiveExtraction.blockers),
+          effectiveExtraction.deadline_confirmation === null ? null : Number(effectiveExtraction.deadline_confirmation),
+          effectiveExtraction.confidence_score,
+          Number(effectiveExtraction.needs_human_review)
+        );
+      }
+
+      const lastInquiry = await db.prepare(`
+        SELECT created_at FROM communication_logs
+        WHERE batch_id = ? AND direction = 'OUTBOUND'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(batchId);
+
+      const riskInput = {
+        dueDate: batch.due_date,
+        batchStatus: batch.status,
+        stages: {
+          cutting: batch.cutting_progress || 0,
+          sewing: batch.sewing_progress || 0,
+          finishing: batch.finishing_progress || 0
+        },
+        latestReport: extractedData ? {
+          reported_progress_percent: effectiveExtraction.reported_progress_percent,
+          reported_eta: effectiveExtraction.reported_eta,
+          blockers: effectiveExtraction.blockers,
+          verification_status: "PENDING"
+        } : null,
+        inquirySentAt: lastInquiry?.created_at || null
+      };
+
+      const riskResult = computeRiskAssessment(riskInput);
+      const riskId = randomUUID();
+      const chatSummary = lastInbound
+        ? `Vendor menyampaikan: "${lastInbound.raw_content}"${effectiveExtraction?.reported_progress_percent != null ? ` Progres terkini ${effectiveExtraction.reported_progress_percent}%.` : ""}${effectiveExtraction?.reported_stage ? ` Tahap ${effectiveExtraction.reported_stage}.` : ""}${effectiveExtraction?.reported_eta ? ` Estimasi selesai ${effectiveExtraction.reported_eta}.` : ""}${effectiveExtraction?.blockers?.length ? ` Kendala: ${effectiveExtraction.blockers.join(", ")}.` : ""}`
+        : "Belum ada pesan masuk dari vendor.";
+
+      await db.prepare(`
+        INSERT INTO risk_assessments (id, batch_id, supplier_id, source_message_id, risk_score, risk_level, risk_reasons, ai_analysis_summary, chat_summary)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        riskId,
+        batchId,
+        batch.supplier_id,
+        lastInbound?.id || null,
+        riskResult.risk_score,
+        riskResult.risk_level,
+        riskResult.risk_reasons,
+        effectiveExtraction ? JSON.stringify(effectiveExtraction) : null,
+        chatSummary
+      );
+
+      return json(res, 200, {
+        batch_no: batch.batch_no,
+        supplier_name: batch.supplier_name,
+        raw_message: lastInbound?.raw_content || null,
+        chat_summary: chatSummary,
+        extraction: effectiveExtraction,
+        risk: riskResult,
+        report_id: reportId,
+        risk_id: riskId
+      });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname.match(/^\/api\/progress-reports\/([a-f0-9-]+)\/verify$/)) {
+    const reportId = RegExp.$1;
+    const body = await readJson(req);
+    const status = String(body.status || "").toUpperCase();
+
+    if (!["VERIFIED", "REJECTED"].includes(status)) {
+      return json(res, 400, { error: "Status harus VERIFIED atau REJECTED" });
+    }
+
+    try {
+      const report = await db.prepare("SELECT id FROM progress_reports WHERE id = ?").get(reportId);
+      if (!report) return json(res, 404, { error: "Report tidak ditemukan" });
+
+      await db.prepare("UPDATE progress_reports SET verification_status = ? WHERE id = ?").run(status, reportId);
+      return json(res, 200, { ok: true });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/supplier-intelligence/scheduler-scan") {
+    try {
+      const results = await runProgressInquiryScheduler(db);
+      return json(res, 200, { results });
+    } catch (error) {
+      return json(res, 500, { error: error.message });
+    }
+  }
+
+  // ============ END SUPPLIER INTELLIGENCE ROUTES ============
 
   if (req.method === "GET" && url.pathname === "/api/customers") {
     try {

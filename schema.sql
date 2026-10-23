@@ -196,3 +196,45 @@ CREATE TABLE bill_of_materials (
   required_qty REAL NOT NULL,
   unit TEXT NOT NULL
 );
+
+-- Supplier Intelligence
+ALTER TABLE suppliers ADD COLUMN phone_number TEXT;
+ALTER TABLE suppliers ADD COLUMN whatsapp_status TEXT DEFAULT 'unverified';
+ALTER TABLE suppliers ADD COLUMN contact_person TEXT;
+ALTER TABLE production_batches ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL;
+
+CREATE TABLE communication_logs (
+  id TEXT PRIMARY KEY,
+  batch_id INTEGER NOT NULL REFERENCES production_batches(id) ON DELETE CASCADE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  direction TEXT NOT NULL CHECK(direction IN ('OUTBOUND', 'INBOUND')),
+  raw_content TEXT NOT NULL,
+  provider_message_id TEXT,
+  extraction_json TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE progress_reports (
+  id TEXT PRIMARY KEY,
+  batch_id INTEGER NOT NULL REFERENCES production_batches(id) ON DELETE CASCADE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  reported_progress_percent INTEGER,
+  reported_eta TEXT,
+  blockers TEXT,
+  confidence_score REAL,
+  verification_status TEXT DEFAULT 'PENDING' CHECK(verification_status IN ('PENDING', 'VERIFIED', 'REJECTED')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE risk_assessments (
+  id TEXT PRIMARY KEY,
+  batch_id INTEGER NOT NULL REFERENCES production_batches(id) ON DELETE CASCADE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  source_message_id TEXT,
+  risk_score INTEGER CHECK(risk_score >= 0 AND risk_score <= 100),
+  risk_level TEXT CHECK(risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
+  risk_reasons TEXT,
+  ai_analysis_summary TEXT,
+  chat_summary TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

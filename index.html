@@ -51,6 +51,7 @@
             <button class="nav" data-view="inventori">⛃ Inventori</button>
             <button class="nav" data-view="pembelian">🛒 Pembelian</button>
             <button class="nav" data-view="produksi">🏭 Produksi</button>
+            <button class="nav" data-view="supplier-intelligence">🛰 Supplier Intelligence</button>
           </div>
 
           <div class="nav-group">
@@ -423,6 +424,7 @@
                   <h2>Tambah Supplier Baru</h2>
                 </div>
                 <form id="supplierForm" class="stack">
+                  <input type="hidden" name="id" value="">
                   <div>
                     <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nama Supplier</label>
                     <input name="name" placeholder="Nama Supplier" required>
@@ -431,7 +433,23 @@
                     <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Kontak / Telepon</label>
                     <input name="contact" placeholder="Kontak / Telepon">
                   </div>
-                  <button type="submit">＋ Tambah Supplier</button>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Contact Person</label>
+                    <input name="contact_person" placeholder="Nama penanggung jawab">
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Nomor WhatsApp</label>
+                    <input name="phone_number" placeholder="628123456789">
+                  </div>
+                  <div>
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px; color:var(--muted);">Status WhatsApp</label>
+                    <select name="whatsapp_status">
+                      <option value="unverified">Unverified</option>
+                      <option value="verified">Verified</option>
+                      <option value="opted_out">Opted Out</option>
+                    </select>
+                  </div>
+                  <button type="submit" id="supplierFormSubmitBtn">＋ Tambah Supplier</button>
                 </form>
               </section>
             </div>
@@ -476,7 +494,21 @@
           </div>
         </section>
 
-
+        <!-- SUPPLIER INTELLIGENCE VIEW -->
+        <section id="supplier-intelligence" class="view">
+          <div class="panel-head" style="margin-bottom: 18px;">
+            <div>
+              <h2>Supplier Intelligence</h2>
+              <p>Monitoring deadline, komunikasi supplier, dan risiko produksi.</p>
+            </div>
+            <button id="runSupplierSchedulerBtn" class="mini" type="button">↻ Scan H-3</button>
+          </div>
+          <section class="panel">
+            <div class="table-wrap">
+              <table id="supplierIntelligenceTable"></table>
+            </div>
+          </section>
+        </section>
 
         <!-- PENJUALAN (REVENUE) VIEW -->
         <section id="penjualan" class="view">
