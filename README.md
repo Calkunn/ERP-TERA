@@ -41,7 +41,6 @@ data/erp.sqlite
 ## Login awal
 
 ```text
-Owner: tera.essential@gmail.com / marksukaallen
 Admin: admin@tera.local / teraadmin
 ```
 
