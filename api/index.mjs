@@ -12,6 +12,17 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import webpush from "web-push";
 
 const root = process.cwd();
+
+// Otomatis membaca file .env jika ada
+try {
+  const envFilePath = join(root, ".env");
+  if (existsSync(envFilePath)) {
+    if (typeof process.loadEnvFile === "function") {
+      process.loadEnvFile(envFilePath);
+    }
+  }
+} catch (_) {}
+
 const sessions = new Map();
 const dbStorage = new AsyncLocalStorage();
 
